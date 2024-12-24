@@ -162,6 +162,87 @@ function displayResults(data) {
         .join('');
     document.getElementById('memorable-moments').innerHTML = momentsHtml;
     
+    // Display sentiment over time
+    const sentimentCtx = document.getElementById('sentiment-chart').getContext('2d');
+    new Chart(sentimentCtx, {
+        type: 'line',
+        data: {
+            labels: data.sentiment_over_time.map(d => d.date),
+            datasets: [{
+                label: 'Group Mood',
+                data: data.sentiment_over_time.map(d => d.sentiment),
+                borderColor: 'rgb(147, 51, 234)',
+                backgroundColor: 'rgba(147, 51, 234, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Group Mood Timeline'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const sentiment = context.raw;
+                            let mood = 'Neutral';
+                            if (sentiment > 0.5) mood = 'Very Positive';
+                            else if (sentiment > 0) mood = 'Positive';
+                            else if (sentiment < -0.5) mood = 'Very Negative';
+                            else if (sentiment < 0) mood = 'Negative';
+                            return `Mood: ${mood} (${sentiment.toFixed(2)})`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: -1,
+                    max: 1,
+                    title: {
+                        display: true,
+                        text: 'Sentiment Score'
+                    }
+                }
+            }
+        }
+    });
+
+    // Display happiest days
+    const happiestHtml = data.happiest_days
+        .map((day, index) => `
+            <div class="p-4 bg-green-50 rounded-lg hover:shadow-lg transition-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-green-700">${day.date}</span>
+                    <span class="text-sm text-green-600">Score: ${day.sentiment.toFixed(2)}</span>
+                </div>
+                <div class="text-sm text-gray-600 space-y-1">
+                    ${day.messages.map(msg => `<p>"${msg}"</p>`).join('')}
+                </div>
+            </div>
+        `)
+        .join('');
+    document.getElementById('happiest-days').innerHTML = happiestHtml;
+
+    // Display saddest days
+    const saddestHtml = data.saddest_days
+        .map((day, index) => `
+            <div class="p-4 bg-blue-50 rounded-lg hover:shadow-lg transition-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-semibold text-blue-700">${day.date}</span>
+                    <span class="text-sm text-blue-600">Score: ${day.sentiment.toFixed(2)}</span>
+                </div>
+                <div class="text-sm text-gray-600 space-y-1">
+                    ${day.messages.map(msg => `<p>"${msg}"</p>`).join('')}
+                </div>
+            </div>
+        `)
+        .join('');
+    document.getElementById('saddest-days').innerHTML = saddestHtml;
+
     // Display holiday greeting
     document.getElementById('holiday-greeting').textContent = data.holiday_greeting;
     

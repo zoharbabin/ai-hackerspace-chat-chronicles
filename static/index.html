@@ -95,6 +95,28 @@
                 <div id="memorable-moments" class="grid gap-4 grid-cols-1 md:grid-cols-3"></div>
             </div>
 
+            <!-- Mood Analysis -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Mood Over Time</h2>
+                <canvas id="sentiment-chart"></canvas>
+            </div>
+
+            <!-- Happiest & Saddest Days -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Happiest Days -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4 text-green-600">Happiest Days</h2>
+                        <div id="happiest-days" class="space-y-4"></div>
+                    </div>
+                    <!-- Saddest Days -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4 text-blue-600">Most Reflective Days</h2>
+                        <div id="saddest-days" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Holiday Greeting -->
             <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
                 <h2 class="text-2xl font-bold mb-4">Holiday Greeting</h2>
