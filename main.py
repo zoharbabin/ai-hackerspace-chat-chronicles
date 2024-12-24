@@ -1,3 +1,5 @@
+import string
+import re
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -7,7 +9,6 @@ from typing import List, Dict, Union
 import json
 from datetime import datetime, timedelta
 import numpy as np
-import re
 from pathlib import Path
 import instructor
 from litellm import completion, set_verbose
@@ -186,30 +187,58 @@ def get_chat_insights(prompt_text: str) -> ChatSummary:
 
 # Common words to filter out
 COMMON_WORDS = {
-    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as',
-    'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will',
-    'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which',
-    'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year',
-    'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its',
-    'over', 'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even',
-    'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us', 'here', 'using', 'been', 'was', 'are',
-    'is', 'has', 'had', 'did', 'were', 'am', 'been', 'being'
+    'a', 'about', 'above', 'after', 'again', 'all', 'am', 'an', 'and', 'any', 
+    'anybody', 'anyone', 'anything', 'are', 'as', 'at', 'be', 'because', 'been', 
+    'being', 'both', 'but', 'by', 'can', 'come', 'could', 'day', 'did', 'do', 
+    'each', 'either', 'every', 'everybody', 'everyone', 'everything', 'few', 
+    'for', 'from', 'get', 'give', 'go', 'good', 'had', 'has', 'have', 'he', 'her', 
+    'here', 'him', 'his', 'how', 'i', 'if', 'in', 'into', 'is', 'it', 'just', 
+    'know', 'like', 'look', 'make', 'many', 'maybe', 'me', 'mine', 'more', 
+    'most', 'much', 'must', 'my', 'myself', 'new', 'no', 'nobody', 'none', 'not', 
+    'nothing', 'now', 'nowhere', 'of', 'on', 'once', 'one', 'only', 'or', 'our', 
+    'ours', 'ourselves', 'out', 'over', 'people', 'perhaps', 'same', 'say', 'see', 
+    'she', 'should', 'so', 'some', 'somebody', 'someone', 'something', 
+    'somewhere', 'stuff', 'such', 'take', 'than', 'that', 'the', 'their', 
+    'theirs', 'them', 'themself', 'themselves', 'then', 'there', 'therefore', 
+    'these', 'they', 'thing', 'things', 'think', 'this', 'those', 'thus', 'time', 
+    'to', 'two', 'up', 'us', 'use', 'using', 'very', 'want', 'was', 'way', 'we', 
+    'well', 'were', 'what', 'when', 'which', 'who', 'will', 'with', 'would', 
+    'year', 'you', 'your', 'yours', 'yourself', 'yourselves'
 }
 
 def process_message_stats(message: str) -> tuple[list, dict, dict]:
-    """Process a single message for emojis and words."""
+    """
+    Process a single message for emojis and words.
+    Enhanced to normalize words (remove punctuation, simple contractions, 
+    possessives) before checking against COMMON_WORDS.
+    """
+    
+    def normalize_word(word: str) -> str:
+        """Return a 'normalized' version of the word for improved matching."""
+        # Lowercase the word
+        w = word.lower()
+        # Strip leading/trailing punctuation
+        w = w.strip(string.punctuation)
+        # Remove simple possessives ('s) at the end (e.g., "John's" -> "john")
+        w = re.sub(r"'s$", "", w)
+        # Remove common contractions at the end (e.g., "can't" -> "can", "you're" -> "you")
+        w = re.sub(r"'(d|m|ve|re|ll|t)$", "", w)
+        return w
+    
+    # Extract emojis
     emojis = EMOJI_PATTERN.findall(str(message))
     
-    # Get all words and filter them
-    words = [
-        word.lower() for word in WORD_PATTERN.findall(str(message))
+    # Get all candidate words and filter them
+    words = []
+    for raw_word in WORD_PATTERN.findall(str(message)):
+        norm_word = normalize_word(raw_word)
         if (
-            len(word) > 3 and  # Remove very short words
-            word.lower() not in COMMON_WORDS and  # Remove common words
-            not word.isdigit() and  # Remove pure numbers
-            'http' not in word.lower()  # Remove URLs
-        )
-    ]
+            len(norm_word) > 3 and          # Remove very short words
+            norm_word not in COMMON_WORDS and  # Filter out common words (using normalized form)
+            not norm_word.isdigit() and    # Remove pure numbers
+            'http' not in norm_word        # Remove URLs or partial URLs
+        ):
+            words.append(norm_word)
     
     return emojis, Counter(emojis), Counter(words)
 
