@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+litellm
+instructor
+pandas
+diskcache
+pydantic
+python-dotenv
+anthropic
+boto3
