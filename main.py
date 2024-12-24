@@ -184,14 +184,37 @@ def get_chat_insights(prompt_text: str) -> ChatSummary:
         logger.error(f"Error getting chat insights: {str(e)}")
         raise
 
+# Common words to filter out
+COMMON_WORDS = {
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not', 'on', 'with', 'he', 'as',
+    'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will',
+    'my', 'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which',
+    'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year',
+    'your', 'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its',
+    'over', 'think', 'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way', 'even',
+    'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us', 'here', 'using', 'been', 'was', 'are',
+    'is', 'has', 'had', 'did', 'were', 'am', 'been', 'being'
+}
+
 def process_message_stats(message: str) -> tuple[list, dict, dict]:
     """Process a single message for emojis and words."""
     emojis = EMOJI_PATTERN.findall(str(message))
-    words = [word.lower() for word in WORD_PATTERN.findall(str(message)) if len(word) > 3]
+    
+    # Get all words and filter them
+    words = [
+        word.lower() for word in WORD_PATTERN.findall(str(message))
+        if (
+            len(word) > 3 and  # Remove very short words
+            word.lower() not in COMMON_WORDS and  # Remove common words
+            not word.isdigit() and  # Remove pure numbers
+            'http' not in word.lower()  # Remove URLs
+        )
+    ]
+    
     return emojis, Counter(emojis), Counter(words)
 
-def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
-    """Parse WhatsApp chat log and return DataFrame with stats."""
+def parse_whatsapp_chat(content: str) -> pd.DataFrame:
+    """Parse and clean WhatsApp chat log, returning only the cleaned DataFrame."""
     start_time = time.time()
     logger.info("Starting WhatsApp chat parsing")
     
@@ -202,10 +225,6 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
     logger.debug(f"Processing {len(lines)} lines of chat")
     parsed_count = 0
     
-    # Initialize counters for parallel processing results
-    all_emojis = Counter()
-    all_words = Counter()
-    
     for line_num, line in enumerate(lines, 1):
         matched = False
         cleaned_line = clean_message(line)
@@ -215,11 +234,8 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
                 if current_message:  # Save previous multi-line message
                     cleaned_current = clean_message(current_message)
                     messages[-1]['message'] += '\n' + cleaned_current
-                    # Process stats for the complete message
-                    _, emoji_counts, word_counts = process_message_stats(messages[-1]['message'])
-                    all_emojis.update(emoji_counts)
-                    all_words.update(word_counts)
                     current_message = ''
+                
                 timestamp, sender, message = match.groups()
                 # Clean the sender and message
                 sender = clean_message(sender)
@@ -230,7 +246,6 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
                     
                 try:
                     timestamp = timestamp.strip('[]')
-                    parsed_timestamp: Optional[datetime] = None
                     parsed_timestamp: Optional[datetime] = None
                     
                     for fmt in ['%d/%m/%Y, %H:%M:%S', '%m/%d/%y, %I:%M:%S %p', '%m/%d/%y, %I:%M %p',
@@ -251,11 +266,6 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
                         'message': message.strip()
                     })
                     
-                    # Process stats for the new message
-                    _, emoji_counts, word_counts = process_message_stats(message.strip())
-                    all_emojis.update(emoji_counts)
-                    all_words.update(word_counts)
-                    
                     parsed_count += 1
                     matched = True
                     break
@@ -269,14 +279,26 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, Dict, Dict]:
     if not messages:
         logger.warning("No messages were successfully parsed")
         logger.debug(f"First few lines of content: {lines[:5]}")
-        return pd.DataFrame(columns=['timestamp', 'sender', 'message']), {}, {}
+        return pd.DataFrame(columns=['timestamp', 'sender', 'message'])
     
     df = pd.DataFrame(messages)
     processing_time = time.time() - start_time
     logger.info(f"Successfully parsed {len(df)} messages in {processing_time:.2f}s")
     logger.debug(f"Parsing rate: {len(df)/processing_time:.1f} messages/second")
     
-    return df, dict(all_emojis), dict(all_words)
+    return df
+
+def analyze_chat_stats(df: pd.DataFrame) -> tuple[Dict, Dict]:
+    """Analyze chat statistics after cleaning is complete."""
+    all_emojis = Counter()
+    all_words = Counter()
+    
+    for message in df['message']:
+        _, emoji_counts, word_counts = process_message_stats(message)
+        all_emojis.update(emoji_counts)
+        all_words.update(word_counts)
+    
+    return dict(all_emojis), dict(all_words)
 
 # Cache for sentiment analysis results
 sentiment_cache = {}
@@ -397,12 +419,15 @@ async def analyze_chat(file: UploadFile = File(...)):
         chat_text = content.decode('utf-8')
         logger.debug(f"File decoded successfully, size: {len(chat_text)} characters")
         
-        # Parse chat into DataFrame and get stats
-        df, emoji_counts, word_counts = parse_whatsapp_chat(chat_text)
+        # First parse and clean all messages
+        df = parse_whatsapp_chat(chat_text)
         
         if len(df) == 0:
             logger.error("No messages could be parsed from the chat file")
             raise HTTPException(status_code=400, detail="No messages could be parsed from the chat file. Please ensure this is a valid WhatsApp chat export.")
+        
+        # Then perform analysis on cleaned data
+        emoji_counts, word_counts = analyze_chat_stats(df)
         
         # Basic statistics
         logger.debug("Calculating user activity statistics")
