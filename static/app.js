@@ -1,3 +1,64 @@
+// Test data for direct file loading
+const testData = {
+    word_cloud_data: [
+        { text: "Hello", value: 100 },
+        { text: "World", value: 80 },
+        { text: "JavaScript", value: 120 },
+        { text: "Programming", value: 90 },
+        { text: "Interactive", value: 70 },
+        { text: "Animation", value: 85 },
+        { text: "Physics", value: 95 },
+        { text: "Canvas", value: 75 },
+        { text: "Game", value: 110 },
+        { text: "Fun", value: 65 }
+    ],
+    activity_by_date: {
+        "2023-01-01": 45,
+        "2023-01-02": 67,
+        "2023-01-03": 89,
+        "2023-01-04": 76,
+        "2023-01-05": 123
+    },
+    sentiment_over_time: [
+        { date: "2023-01-01", sentiment: 0.8 },
+        { date: "2023-01-02", sentiment: 0.3 },
+        { date: "2023-01-03", sentiment: -0.2 },
+        { date: "2023-01-04", sentiment: 0.5 },
+        { date: "2023-01-05", sentiment: 0.9 }
+    ],
+    most_active_users: [
+        { name: "User 1", count: 234 },
+        { name: "User 2", count: 187 },
+        { name: "User 3", count: 156 }
+    ],
+    emoji_stats: {
+        "😊": 45,
+        "❤️": 34,
+        "👍": 28,
+        "🎉": 23
+    },
+    memorable_moments: [
+        "Remember that amazing project we finished!",
+        "The virtual party was so much fun!",
+        "Great team collaboration day"
+    ],
+    happiest_days: [
+        {
+            date: "2023-01-05",
+            sentiment: 0.9,
+            messages: ["What an amazing achievement!", "Great work everyone!"]
+        }
+    ],
+    saddest_days: [
+        {
+            date: "2023-01-03",
+            sentiment: -0.2,
+            messages: ["Tough challenges ahead", "We'll get through this together"]
+        }
+    ],
+    holiday_greeting: "Happy Holidays! 🎄✨ What an amazing year of collaboration!"
+};
+
 // Snow effect
 function createSnowflakes() {
     const snowContainer = document.getElementById('snow-container');
@@ -23,42 +84,54 @@ function createSnowflakes() {
 // Create snowflakes periodically
 setInterval(createSnowflakes, 200);
 
-// File upload handling
-document.getElementById('chat-file').addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    // Display file name
-    document.getElementById('file-name').textContent = file.name;
-    
-    // Show loading indicator
-    document.getElementById('loading').classList.remove('hidden');
-    document.getElementById('results').classList.add('hidden');
-    
-    // Create form data
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-        // Send file to backend
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            body: formData
+// Initialize with test data or handle file upload
+function init() {
+    // For direct file testing, show results immediately
+    if (window.location.protocol === 'file:') {
+        document.getElementById('results').classList.remove('hidden');
+        displayResults(testData);
+    } else {
+        // File upload handling
+        document.getElementById('chat-file').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Display file name
+            document.getElementById('file-name').textContent = file.name;
+            
+            // Show loading indicator
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            
+            // Create form data
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                // Send file to backend
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Analysis failed');
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to analyze chat. Please try again.');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
         });
-        
-        if (!response.ok) {
-            throw new Error('Analysis failed');
-        }
-        
-        const data = await response.json();
-        displayResults(data);
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to analyze chat. Please try again.');
-    } finally {
-        document.getElementById('loading').classList.add('hidden');
     }
-});
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', init);
 
 function displayResults(data) {
     // Show results container
@@ -107,226 +180,10 @@ function displayResults(data) {
         }
     });
     
-    // Display word cloud with game mechanics
-    // Words are pre-filtered in the backend
-    const words = data.word_cloud_data.sort((a, b) => b.value - a.value);
-    const width = document.getElementById('word-cloud').offsetWidth;
-    const height = 400; // Increased height for game UI
-
-    // Clear and setup game container
-    const container = document.getElementById('word-cloud');
-    container.innerHTML = `
-        <div class="mb-4 flex justify-between items-center">
-            <div class="text-lg font-semibold">Score: <span id="word-game-score">0</span></div>
-            <button id="start-word-game" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
-                Start Word Game
-            </button>
-        </div>
-        <div id="word-game-prompt" class="mb-4 text-center hidden">
-            <p class="text-lg mb-2">Can you guess which word appears more times?</p>
-            <div class="flex justify-center gap-4">
-                <button class="word-choice bg-gray-100 hover:bg-gray-200 px-6 py-3 rounded-lg"></button>
-                <button class="word-choice bg-gray-100 hover:bg-gray-200 px-6 py-3 rounded-lg"></button>
-            </div>
-        </div>
-        <div id="word-cloud-svg"></div>
-    `;
-
-    let gameScore = 0;
-    let isGameActive = false;
-    
-    // Calculate font sizes with better distribution
-    const maxFreq = Math.max(...words.map(w => w.value));
-    const minFreq = Math.min(...words.map(w => w.value));
-    const fontScale = d3.scaleLog()
-        .domain([minFreq, maxFreq])
-        .range([20, 60]); // Increased font size range for better visibility of meaningful words
-
-    // Create word cloud with improved layout for filtered data
-    const layout = d3.layout.cloud()
-        .size([width, height])
-        .words(words.map(d => ({
-            text: d.text,
-            size: fontScale(d.value),
-            value: d.value,
-            guessed: false
-        })))
-        .padding(10) // More padding since we have fewer but more meaningful words
-        .rotate(() => Math.random() > 0.8 ? 0 : 90) // Further reduce rotated words for readability
-        .fontSize(d => d.size)
-        .spiral('archimedean') // Switch to archimedean spiral for more natural word placement
-        .on('end', draw);
-    
-    layout.start();
-    
-    function draw(words) {
-        const svg = d3.select('#word-cloud-svg')
-            .append('svg')
-            .attr('width', width)
-            .attr('height', height)
-            .append('g')
-            .attr('transform', `translate(${width/2},${height/2})`);
-
-        const texts = svg.selectAll('text')
-            .data(words)
-            .enter()
-            .append('text')
-            .style('font-size', d => `${d.size}px`)
-            .style('fill', d => d.guessed ? '#22c55e' : `hsl(${Math.random() * 360}, 70%, 50%)`)
-            .attr('text-anchor', 'middle')
-            .attr('transform', d => `translate(${d.x},${d.y})rotate(${d.rotate})`)
-            .text(d => d.text)
-            .style('cursor', 'pointer')
-            .style('transition', 'all 0.3s ease')
-            .style('opacity', 0.8);
-
-        // Add hover and click effects
-        texts.on('mouseover', function() {
-                d3.select(this)
-                    .style('transform', 'scale(1.25)')
-                    .style('filter', 'brightness(1.2)')
-                    .style('opacity', 1);
-            })
-            .on('mouseout', function() {
-                d3.select(this)
-                    .style('transform', 'scale(1)')
-                    .style('filter', 'brightness(1)')
-                    .style('opacity', 0.8);
-            })
-            .on('click', function(event, d) {
-                createConfetti(event.pageX, event.pageY);
-                
-                // Calculate additional insights
-                const avgWordLength = words.reduce((sum, w) => sum + w.text.length, 0) / words.length;
-                const maxValue = Math.max(...words.map(w => w.value));
-                const percentageOfMax = ((d.value / maxValue) * 100).toFixed(1);
-                
-                showWordStats(d, {
-                    frequency: d.value,
-                    percentageOfMax,
-                    length: d.text.length,
-                    avgLength: avgWordLength.toFixed(1),
-                    rank: words.sort((a, b) => b.value - a.value)
-                              .findIndex(w => w.text === d.text) + 1
-                }, event.pageX, event.pageY);
-            });
-
-        // Setup word guessing game
-        document.getElementById('start-word-game').addEventListener('click', () => {
-            if (!isGameActive) {
-                startWordGame(words, texts);
-            }
-        });
-    }
-
-    function showWordStats(word, stats, x, y) {
-        const popup = document.createElement('div');
-        popup.className = 'fixed bg-white p-4 rounded-lg shadow-lg z-50 transition-opacity duration-300 max-w-xs';
-        popup.style.left = `${x}px`;
-        popup.style.top = `${y - 40}px`;
-        
-        popup.innerHTML = `
-            <h3 class="font-bold text-lg mb-2">"${word.text}" Stats</h3>
-            <ul class="space-y-1 text-sm">
-                <li>🔄 Appears ${stats.frequency} times</li>
-                <li>📊 ${stats.percentageOfMax}% of most frequent word</li>
-                <li>📏 Length: ${stats.length} (avg: ${stats.avgLength})</li>
-                <li>🏆 Rank: #${stats.rank} most frequent</li>
-            </ul>
-        `;
-        
-        document.body.appendChild(popup);
-        
-        requestAnimationFrame(() => {
-            popup.style.opacity = '1';
-        });
-        
-        setTimeout(() => {
-            popup.style.opacity = '0';
-            setTimeout(() => popup.remove(), 300);
-        }, 3000);
-    }
-
-    function startWordGame(words, texts) {
-        isGameActive = true;
-        const gamePrompt = document.getElementById('word-game-prompt');
-        const choices = gamePrompt.querySelectorAll('.word-choice');
-        const startBtn = document.getElementById('start-word-game');
-        
-        startBtn.textContent = 'Game Active';
-        startBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
-        startBtn.classList.add('bg-green-500');
-        gamePrompt.classList.remove('hidden');
-
-        function newRound() {
-            // Select two random unguessed words
-            const unguessedWords = words.filter(w => !w.guessed);
-            if (unguessedWords.length < 2) {
-                endGame();
-                return;
-            }
-
-            const word1 = unguessedWords[Math.floor(Math.random() * unguessedWords.length)];
-            let word2;
-            do {
-                word2 = unguessedWords[Math.floor(Math.random() * unguessedWords.length)];
-            } while (word2 === word1);
-
-            // Randomly assign words to buttons
-            const [btnWord1, btnWord2] = Math.random() > 0.5 ? [word1, word2] : [word2, word1];
-            
-            choices[0].textContent = btnWord1.text;
-            choices[1].textContent = btnWord2.text;
-
-            // Add click handlers
-            choices.forEach(btn => {
-                btn.onclick = function() {
-                    const selectedWord = words.find(w => w.text === this.textContent);
-                    const otherWord = words.find(w =>
-                        w.text === (this === choices[0] ? choices[1].textContent : choices[0].textContent)
-                    );
-
-                    if (selectedWord.value > otherWord.value) {
-                        gameScore += 100;
-                        createConfetti(window.innerWidth / 2, window.innerHeight / 2);
-                    } else {
-                        gameScore = Math.max(0, gameScore - 50);
-                    }
-
-                    document.getElementById('word-game-score').textContent = gameScore;
-
-                    // Mark words as guessed
-                    selectedWord.guessed = true;
-                    otherWord.guessed = true;
-
-                    // Update word colors
-                    texts.filter(t => t.text === selectedWord.text || t.text === otherWord.text)
-                         .style('fill', '#22c55e');
-
-                    // Start new round
-                    setTimeout(newRound, 1000);
-                };
-            });
-        }
-
-        function endGame() {
-            isGameActive = false;
-            gamePrompt.classList.add('hidden');
-            startBtn.textContent = 'Start Word Game';
-            startBtn.classList.remove('bg-green-500');
-            startBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
-            
-            showPopup(`Game Over! Final Score: ${gameScore}`, window.innerWidth / 2, window.innerHeight / 2);
-            
-            // Reset game state
-            words.forEach(w => w.guessed = false);
-            texts.style('fill', d => `hsl(${Math.random() * 360}, 70%, 50%)`);
-            gameScore = 0;
-            document.getElementById('word-game-score').textContent = '0';
-        }
-
-        newRound();
-    }
+    // Create floating word cloud
+    const wordCloudContainer = document.getElementById('word-cloud');
+    wordCloudContainer.innerHTML = '<div class="text-gray-600 mb-4">Click words to celebrate them with confetti! Hover to see how many times they appear.</div>';
+    createWordCloud(wordCloudContainer, data.word_cloud_data);
     
     // Display sentiment over time with enhanced interactivity
     const sentimentCtx = document.getElementById('sentiment-chart').getContext('2d');
