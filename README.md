@@ -143,24 +143,9 @@ holiday-ai-hackerspace/
 
 Future improvements could include:
 
-- [ ] Support for more chat export formats
-- [ ] Additional visualization types
-- [ ] User authentication
-- [ ] Save/share analysis results
-- [ ] Export reports as PDF
-- [ ] More AI-powered insights
-- [ ] Custom themes
-- [ ] Offline support
-- [ ] Multi-language support
-- [ ] Group comparison features
-
-## Maintenance 🔨
-
-- Regularly update dependencies
-- Monitor AWS Bedrock usage
-- Clear cache periodically
-- Check for security updates
-- Review and optimize performance
+1. [ ] Support for more chat export formats (Facebook Messanger, Discord, etc.)
+2. [ ] Export reports as PDF
+3. [ ] More AI-powered insights and additional visualization types
 
 ## License 📄
 
