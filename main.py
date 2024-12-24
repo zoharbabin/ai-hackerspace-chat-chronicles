@@ -1,5 +1,6 @@
 import string
 import re
+import hashlib
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -100,9 +101,13 @@ logger.debug("CORS middleware configured")
 client = instructor.from_litellm(completion)
 logger.info("Instructor client initialized with LiteLLM")
 
-# Create static directory if it doesn't exist
+# Create static and cache directories if they don't exist
 Path("static").mkdir(exist_ok=True)
-logger.debug("Static directory checked/created")
+Path("cache").mkdir(exist_ok=True)
+logger.debug("Static and cache directories checked/created")
+
+# Cache directory path
+CACHE_DIR = Path("cache")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -140,6 +145,33 @@ class ChatSummary(BaseModel):
     sentiment_over_time: List[SentimentData]
     happiest_days: List[SentimentData]
     saddest_days: List[SentimentData]
+
+def calculate_md5(content: bytes) -> str:
+    """Calculate MD5 hash of file content."""
+    return hashlib.md5(content).hexdigest()
+
+def get_cached_result(file_hash: str) -> Optional[ChatSummary]:
+    """Try to get cached analysis result."""
+    cache_file = CACHE_DIR / f"{file_hash}.json"
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r') as f:
+                data = json.load(f)
+                return ChatSummary(**data)
+        except Exception as e:
+            logger.error(f"Error reading cache file: {str(e)}")
+            return None
+    return None
+
+def save_to_cache(file_hash: str, result: ChatSummary):
+    """Save analysis result to cache."""
+    cache_file = CACHE_DIR / f"{file_hash}.json"
+    try:
+        with open(cache_file, 'w') as f:
+            json.dump(result.dict(), f)
+        logger.info(f"Analysis result cached to {cache_file}")
+    except Exception as e:
+        logger.error(f"Error saving to cache: {str(e)}")
 
 # Pre-compile regex patterns
 EMOJI_PATTERN = re.compile(r'[\U0001F300-\U0001F9FF]')
@@ -443,8 +475,20 @@ async def analyze_chat(file: UploadFile = File(...)):
     logger.info(f"Starting analysis of file: {file.filename}")
     
     try:
-        # Read and decode file
+        # Read file content
         content = await file.read()
+        
+        # Calculate MD5 hash of file content
+        file_hash = calculate_md5(content)
+        logger.info(f"File hash: {file_hash}")
+        
+        # Check cache first
+        cached_result = get_cached_result(file_hash)
+        if cached_result:
+            logger.info(f"Returning cached analysis for {file.filename}")
+            return cached_result
+            
+        # If not cached, proceed with analysis
         chat_text = content.decode('utf-8')
         logger.debug(f"File decoded successfully, size: {len(chat_text)} characters")
         
@@ -522,6 +566,10 @@ async def analyze_chat(file: UploadFile = File(...)):
         
         total_time = time.time() - start_time
         logger.info(f"Analysis completed in {total_time:.2f}s")
+        
+        # Save result to cache
+        save_to_cache(file_hash, summary)
+        
         return summary
             
     except Exception as e:
