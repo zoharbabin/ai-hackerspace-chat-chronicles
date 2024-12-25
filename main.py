@@ -140,6 +140,12 @@ class ViralMessage(BaseModel):
     reactions: int
     thread: List[str]
 
+class SharedLink(BaseModel):
+    url: str
+    replies: int
+    reactions: int
+    context: str
+
 class ChatSummary(BaseModel):
     most_active_users: List[UserActivity]
     popular_topics: List[str]
@@ -152,6 +158,7 @@ class ChatSummary(BaseModel):
     happiest_days: List[SentimentData]
     saddest_days: List[SentimentData]
     viral_messages: List[ViralMessage]
+    shared_links: List[SharedLink]
 
 def calculate_md5(content: bytes) -> str:
     """Calculate MD5 hash of file content."""
@@ -214,7 +221,7 @@ def get_chat_insights(prompt_text: str) -> ChatSummary:
         response = client.chat.completions.create(
             model=CHAT_INSIGHTS_MODEL,
             messages=[{"role": "user", "content": prompt_text}],
-            max_tokens=1024,
+            max_tokens=2048,
             response_model=ChatSummary,
             caching=True
         )
@@ -652,6 +659,61 @@ async def analyze_chat(file: UploadFile = File(...)):
         # Sort by total engagement (replies + reactions) and take top 3
         viral_messages.sort(key=lambda x: x.replies + x.reactions, reverse=True)
         viral_messages = viral_messages[:3]
+
+        # Analyze shared links
+        logger.debug("Analyzing shared links")
+        shared_links = []
+        url_pattern = re.compile(r'https?://\S+')
+        
+        # Track link engagement
+        link_stats = {}  # url -> {replies: int, reactions: int, context: str}
+        
+        # First pass: find all links and their immediate context
+        for idx, row in messages_by_time.iterrows():
+            message = row['message']
+            urls = url_pattern.findall(message)
+            
+            if urls:
+                # Count reactions in the message containing the link
+                reactions = len(EMOJI_PATTERN.findall(message))
+                
+                for url in urls:
+                    if url not in link_stats:
+                        link_stats[url] = {
+                            'replies': 0,
+                            'reactions': reactions,
+                            'context': message
+                        }
+                    else:
+                        link_stats[url]['reactions'] += reactions
+
+        # Second pass: count replies to messages with links
+        for url, stats in link_stats.items():
+            # Find messages that reference this link
+            for idx, row in messages_by_time.iterrows():
+                message = row['message'].lower()
+                if url.lower() in message:
+                    # Count replies and reactions in the thread
+                    thread_start = row['timestamp']
+                    thread_messages = messages_by_time[
+                        (messages_by_time['timestamp'] > thread_start) &
+                        (messages_by_time['timestamp'] <= thread_start + THREAD_WINDOW)
+                    ]
+                    
+                    stats['replies'] += len(thread_messages)
+                    stats['reactions'] += sum(len(EMOJI_PATTERN.findall(m)) for m in thread_messages['message'])
+
+        # Convert to SharedLink objects and sort by engagement
+        for url, stats in link_stats.items():
+            shared_links.append(SharedLink(
+                url=url,
+                replies=stats['replies'],
+                reactions=stats['reactions'],
+                context=stats['context']
+            ))
+
+        shared_links.sort(key=lambda x: x.replies + x.reactions, reverse=True)
+        shared_links = shared_links[:10]  # Keep top 10 most engaging links
         
         # Create summary with properly structured data
         summary = ChatSummary(
@@ -665,7 +727,8 @@ async def analyze_chat(file: UploadFile = File(...)):
             sentiment_over_time=sorted(sentiment_data, key=lambda x: x.date),
             happiest_days=happiest_days,
             saddest_days=saddest_days,
-            viral_messages=viral_messages
+            viral_messages=viral_messages,
+            shared_links=shared_links
         )
         
         total_time = time.time() - start_time

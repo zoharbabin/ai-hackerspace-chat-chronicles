@@ -289,6 +289,7 @@ function displayResults(data) {
     displayHappiestDays(data);
     displaySaddestDays(data);
     displayViralMessages(data);
+    displaySharedLinks(data);
     
     // Display holiday greeting
     document.getElementById('holiday-greeting').textContent = data.holiday_greeting;
@@ -492,4 +493,39 @@ function displayViralMessages(data) {
     const container = document.getElementById('viral-messages');
     console.log('Container element:', container);
     container.innerHTML = viralHtml;
+}
+
+function displaySharedLinks(data) {
+    if (!data.shared_links) {
+        console.log('No shared links found');
+        return;
+    }
+    
+    const linksHtml = data.shared_links
+        .map(link => `
+            <div class="p-4 bg-blue-50 rounded-lg hover:shadow-lg transition-all duration-300
+                transform hover:scale-105 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
+                <div class="flex items-start gap-4">
+                    <div class="flex-grow">
+                        <a href="${link.url}" target="_blank" class="text-blue-600 hover:text-blue-800 font-medium break-all">
+                            ${link.url}
+                        </a>
+                        <div class="text-sm text-gray-600 mt-2">
+                            <span class="inline-flex items-center mr-4">
+                                <span class="mr-1">💬</span> ${link.replies} replies
+                            </span>
+                            <span class="inline-flex items-center">
+                                <span class="mr-1">❤️</span> ${link.reactions} reactions
+                            </span>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-700">
+                            <p class="italic">"${link.context}"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `)
+        .join('');
+    
+    document.getElementById('shared-links').innerHTML = linksHtml;
 }
