@@ -5,6 +5,9 @@ on:
     branches:
       - main  # or whichever branch you want to trigger on
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
