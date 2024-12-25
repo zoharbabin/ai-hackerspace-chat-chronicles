@@ -467,17 +467,21 @@ function displayViralMessages(data) {
         .map(msg => {
             console.log('Processing message:', msg);
             return `
-                <div class="p-4 bg-purple-50 rounded-lg hover:shadow-lg transition-all duration-300
-                    transform hover:scale-105 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="font-semibold text-purple-700">${msg.message}</span>
-                        <div class="flex space-x-3">
-                            <span class="text-sm text-purple-600">💬 ${msg.replies}</span>
-                            <span class="text-sm text-purple-600">❤️ ${msg.reactions}</span>
+                <div class="p-2 bg-purple-50 rounded hover:bg-purple-100 transition-all duration-200 cursor-pointer"
+                    onclick="createConfetti(event.clientX, event.clientY)">
+                    <div class="flex items-start gap-2">
+                        <div class="flex-grow">
+                            <p class="font-medium text-purple-900 mb-1">${msg.message}</p>
+                            <div class="text-xs text-purple-600 flex items-center gap-2 mb-1">
+                                <span class="inline-flex items-center">💬 ${msg.replies}</span>
+                                <span class="inline-flex items-center">❤️ ${msg.reactions}</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-sm text-gray-600 space-y-1 mt-3 bg-white p-3 rounded">
-                        ${msg.thread.map(reply => `<p class="hover:bg-purple-50 p-1 rounded">${reply}</p>`).join('')}
+                    <div class="text-sm text-gray-600 border-l-2 border-purple-200 pl-2 mt-1">
+                        ${msg.thread.map(reply => `
+                            <p class="text-sm py-0.5 hover:bg-purple-50 rounded">${reply}</p>
+                        `).join('')}
                     </div>
                 </div>
             `;
