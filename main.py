@@ -134,6 +134,12 @@ class SentimentData(BaseModel):
     sentiment: float
     messages: List[str]
 
+class ViralMessage(BaseModel):
+    message: str
+    replies: int
+    reactions: int
+    thread: List[str]
+
 class ChatSummary(BaseModel):
     most_active_users: List[UserActivity]
     popular_topics: List[str]
@@ -145,6 +151,7 @@ class ChatSummary(BaseModel):
     sentiment_over_time: List[SentimentData]
     happiest_days: List[SentimentData]
     saddest_days: List[SentimentData]
+    viral_messages: List[ViralMessage]
 
 def calculate_md5(content: bytes) -> str:
     """Calculate MD5 hash of file content."""
@@ -550,6 +557,102 @@ async def analyze_chat(file: UploadFile = File(...)):
         saddest_days = sentiment_data[:3]  # 3 most negative days
         happiest_days = sentiment_data[-3:][::-1]  # 3 most positive days
         
+        # Identify viral messages by analyzing engagement patterns
+        logger.debug("Identifying viral messages")
+        viral_messages = []
+        messages_by_time = df.sort_values('timestamp')
+        logger.debug(f"Processing {len(messages_by_time)} messages for viral threads")
+        
+        # Window for considering messages part of the same thread (4 hours)
+        THREAD_WINDOW = pd.Timedelta(hours=4)
+        
+        # Track message threads
+        threads = {}  # message -> {replies: [], reactions: 0, timestamp: pd.Timestamp}
+        
+        def is_related_message(orig_msg: str, potential_reply: str) -> bool:
+            """Check if a message is likely a reply to another message."""
+            # Convert both messages to lowercase for comparison
+            orig_lower = orig_msg.lower()
+            reply_lower = potential_reply.lower()
+            
+            # Check for direct reply indicators
+            if (potential_reply.startswith('@') or
+                'replied to' in reply_lower or
+                orig_lower in reply_lower):
+                return True
+                
+            # Check for semantic similarity using key words
+            orig_words = set(orig_lower.split())
+            reply_words = set(reply_lower.split())
+            
+            # If the reply contains multiple words from the original message
+            common_words = orig_words & reply_words
+            if len(common_words) >= 2 and not common_words.issubset(COMMON_WORDS):
+                return True
+                
+            # Check for question-answer pattern
+            if '?' in orig_msg and len(potential_reply.split()) <= 10:
+                return True
+                
+            return False
+        
+        current_thread = None
+        thread_messages = []
+        
+        for idx, row in messages_by_time.iterrows():
+            message = row['message']
+            timestamp = row['timestamp']
+            
+            # Skip system messages and very short messages
+            if any(pattern.match(message) for pattern in SYSTEM_MESSAGE_PATTERNS):
+                continue
+            if len(message.split()) < 3:
+                continue
+            
+            # Count reactions (emojis)
+            reactions = len(EMOJI_PATTERN.findall(message))
+            
+            # Check if this message belongs to the current thread
+            if current_thread and (timestamp - current_thread['timestamp']) <= THREAD_WINDOW:
+                if is_related_message(current_thread['message'], message):
+                    thread_messages.append(message)
+                    current_thread['reactions'] += reactions
+                    continue
+            
+            # If we have a significant thread, save it
+            if current_thread and len(thread_messages) >= 2:
+                viral_messages.append(ViralMessage(
+                    message=current_thread['message'],
+                    replies=len(thread_messages),
+                    reactions=current_thread['reactions'],
+                    thread=thread_messages
+                ))
+            
+            # Start new thread
+            current_thread = {
+                'message': message,
+                'timestamp': timestamp,
+                'reactions': reactions
+            }
+            thread_messages = []
+        
+        # Handle the final thread
+        if current_thread and len(thread_messages) >= 2:
+            viral_messages.append(ViralMessage(
+                message=current_thread['message'],
+                replies=len(thread_messages),
+                reactions=current_thread['reactions'],
+                thread=thread_messages
+            ))
+        
+        # Sort by engagement (replies + reactions) and take top 3
+        viral_messages.sort(key=lambda x: x.replies + x.reactions, reverse=True)
+        viral_messages = viral_messages[:3]
+        
+        # Sort by total engagement (replies + reactions) and take top 3
+        viral_messages.sort(key=lambda x: x.replies + x.reactions, reverse=True)
+        viral_messages = viral_messages[:3]
+        
         # Create summary with properly structured data
         summary = ChatSummary(
             most_active_users=[UserActivity(name=k, count=v) for k, v in most_active.items()],
@@ -561,7 +664,8 @@ async def analyze_chat(file: UploadFile = File(...)):
             holiday_greeting=response.holiday_greeting,
             sentiment_over_time=sorted(sentiment_data, key=lambda x: x.date),
             happiest_days=happiest_days,
-            saddest_days=saddest_days
+            saddest_days=saddest_days,
+            viral_messages=viral_messages
         )
         
         total_time = time.time() - start_time

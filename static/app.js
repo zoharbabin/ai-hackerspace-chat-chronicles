@@ -56,7 +56,39 @@ const testData = {
             messages: ["Tough challenges ahead", "We'll get through this together"]
         }
     ],
-    holiday_greeting: "Happy Holidays! 🎄✨ What an amazing year of collaboration!"
+    holiday_greeting: "Happy Holidays! 🎄✨ What an amazing year of collaboration!",
+    viral_messages: [
+        {
+            message: "ARK just released a report on humanoid robots: \"If humanoid robots are able to operate at scale, they could generate ~$24 trillion in revenues\"",
+            replies: 3,
+            reactions: 2,
+            thread: [
+                "https://en.wikipedia.org/wiki/Cathie_Wood\nShe's an amazing CEO. I bought all her ETFs for the long in 2023 Q4.",
+                "If robots replace human workers, and humans lose their income, who will have the purchasing power to buy the increased output?",
+                "There is just so much room there though and niche specific needs, I doubt openAI can actually steamroll and own the entire space."
+            ]
+        },
+        {
+            message: "Has anyone used aider.chat? If yes, what is your opinion on it?",
+            replies: 3,
+            reactions: 1,
+            thread: [
+                "Yes RuV and some of us use it as code and debug ide",
+                "aider.chat is fantastic. It's the glue between the coding model and the software development process. Working with aider feels very natural as a software dev and it's an incredible productivity booster.",
+                "🙏"
+            ]
+        },
+        {
+            message: "Anyone have some best practices to share regarding using agents for customer service?",
+            replies: 4,
+            reactions: 0,
+            thread: [
+                "I have an approach that I'd like to run by anyone doing agents...",
+                "1. Start by trying to get everything you need done by shoving everything in one prompt.\n2. Then check what the failure cases are. 3. If the failure case can easily be solved by modifying the prompt, do that 4. Otherwise start to add layers to your system, e.g. routing for different types of queries",
+                "Yeah I think this is true of prompt engineering generally. Start by just asking ai to do the thing you want and see what happens!"
+            ]
+        }
+    ]
 };
 
 // Snow effect
@@ -88,6 +120,7 @@ setInterval(createSnowflakes, 200);
 function init() {
     // For direct file testing, show results immediately
     if (window.location.protocol === 'file:') {
+        console.log('Loading test data:', testData);
         document.getElementById('results').classList.remove('hidden');
         displayResults(testData);
     } else {
@@ -249,12 +282,13 @@ function displayResults(data) {
         }
     });
 
-    // Rest of the display functions...
+    // Display all sections
     displayTopContributors(data);
     displayEmojiStats(data);
     displayMemorableMoments(data);
     displayHappiestDays(data);
     displaySaddestDays(data);
+    displayViralMessages(data);
     
     // Display holiday greeting
     document.getElementById('holiday-greeting').textContent = data.holiday_greeting;
@@ -420,4 +454,38 @@ function displaySaddestDays(data) {
         `)
         .join('');
     document.getElementById('saddest-days').innerHTML = saddestHtml;
+}
+
+function displayViralMessages(data) {
+    console.log('Displaying viral messages:', data.viral_messages);
+    if (!data.viral_messages) {
+        console.log('No viral messages found');
+        return;
+    }
+    
+    const viralHtml = data.viral_messages
+        .map(msg => {
+            console.log('Processing message:', msg);
+            return `
+                <div class="p-4 bg-purple-50 rounded-lg hover:shadow-lg transition-all duration-300
+                    transform hover:scale-105 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-semibold text-purple-700">${msg.message}</span>
+                        <div class="flex space-x-3">
+                            <span class="text-sm text-purple-600">💬 ${msg.replies}</span>
+                            <span class="text-sm text-purple-600">❤️ ${msg.reactions}</span>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600 space-y-1 mt-3 bg-white p-3 rounded">
+                        ${msg.thread.map(reply => `<p class="hover:bg-purple-50 p-1 rounded">${reply}</p>`).join('')}
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+    
+    console.log('Generated HTML:', viralHtml);
+    const container = document.getElementById('viral-messages');
+    console.log('Container element:', container);
+    container.innerHTML = viralHtml;
 }
