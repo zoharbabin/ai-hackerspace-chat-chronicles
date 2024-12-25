@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat Summary</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="word-cloud.js"></script>
+    <style>
+        .snowflake {
+            position: fixed;
+            color: #fff;
+            font-size: 1em;
+            font-family: Arial, sans-serif;
+            text-shadow: 0 0 5px #000;
+            user-select: none;
+            z-index: 1000;
+            animation: fall linear forwards;
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(100vh);
+            }
+        }
+        .memory-card {
+            transition: transform 0.3s ease;
+        }
+        .memory-card:hover {
+            transform: scale(1.05);
+        }
+        select {
+            appearance: auto !important;
+            -webkit-appearance: auto !important;
+            -moz-appearance: auto !important;
+            padding-right: 2rem !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Snow container -->
+    <div id="snow-container" class="fixed inset-0 pointer-events-none"></div>
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-red-600 to-green-600 text-white p-6 shadow-lg">
+        <h1 class="text-4xl font-bold text-center mb-2">WhatsApp Chat Summary</h1>
+        <p class="text-center text-lg">Celebrate your group's year in messages! 🎄✨</p>
+    </header>
+
+    <!-- Main content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Group Selection -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex flex-col items-center">
+                <label for="group-select" class="mb-4 text-lg font-semibold">Select a Group Chat</label>
+                <select id="group-select" class="w-full max-w-md p-2 border border-gray-300 rounded-lg bg-white">
+                    <option value="">Choose a group...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading" class="hidden">
+            <div class="flex justify-center items-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            </div>
+        </div>
+
+        <!-- Results section -->
+        <div id="results" class="hidden grid gap-8 grid-cols-1 md:grid-cols-2">
+            <!-- Activity Timeline -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Activity Timeline</h2>
+                <canvas id="activity-chart"></canvas>
+            </div>
+
+            <!-- Word Cloud Game -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Most Used Words</h2>
+                <div id="word-cloud" class="w-full min-h-[400px]"></div>
+            </div>
+
+            <!-- Top Contributors -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Top Contributors</h2>
+                <div id="top-contributors" class="space-y-4"></div>
+            </div>
+
+            <!-- Emoji Stats -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold mb-4">Most Used Emojis</h2>
+                <div id="emoji-stats" class="grid grid-cols-2 gap-4"></div>
+            </div>
+
+            <!-- Memorable Moments -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Memorable Moments</h2>
+                <div id="memorable-moments" class="grid gap-4 grid-cols-1 md:grid-cols-3"></div>
+            </div>
+
+            <!-- Mood Analysis -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Mood Over Time</h2>
+                <canvas id="sentiment-chart"></canvas>
+            </div>
+
+            <!-- Happiest & Saddest Days -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Happiest Days -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4 text-green-600">Happiest Days</h2>
+                        <div id="happiest-days" class="space-y-4"></div>
+                    </div>
+                    <!-- Saddest Days -->
+                    <div>
+                        <h2 class="text-2xl font-bold mb-4 text-blue-600">Most Reflective Days</h2>
+                        <div id="saddest-days" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Viral Messages -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Epic Chat Moments</h2>
+                <div id="viral-messages" class="space-y-2"></div>
+            </div>
+
+            <!-- Top Shared Links -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Most Engaging Shared Links</h2>
+                <div id="shared-links" class="space-y-4"></div>
+            </div>
+
+            <!-- Holiday Greeting -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Holiday Greeting</h2>
+                <div id="holiday-greeting" class="text-center text-xl italic p-4 bg-gradient-to-r from-red-100 to-green-100 rounded-lg"></div>
+            </div>
+
+            <!-- Chat Poem -->
+            <div class="bg-white rounded-lg shadow-md p-6 col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4">Your Group's Holiday Poem</h2>
+                <div id="chat-poem" class="text-center text-lg font-serif p-6 bg-gradient-to-r from-red-50 to-green-50 rounded-lg whitespace-pre-line"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-4 mt-8">
+        <p class="text-center">Made with ❤️ for the holidays</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
