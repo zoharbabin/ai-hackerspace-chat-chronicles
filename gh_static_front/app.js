@@ -27,59 +27,75 @@ setInterval(createSnowflakes, 200);
 let activityChart = null;
 let sentimentChart = null;
 
-// Initialize with available groups
+// Initialize with available groups or load specific chat
 async function init() {
-    const groupSelect = document.getElementById('group-select');
-    
-    // List of available groups with their filenames
-    const groups = [
-        {name: 'Agentic Robotics', file: 'Agentic Robotics.json'},
-        {name: 'Ai Code Chat', file: 'Ai Code Chat.json'},
-        {name: 'AI Startup Chat', file: 'AI Startup Chat.json'},
-        {name: 'Breaking Ai News & Links', file: 'Breaking Ai News & Links.json'},
-        {name: 'Events & Conferences', file: 'Events & Conferences.json'},
-        {name: 'General Ai Chat', file: 'General Ai Chat.json'},
-        {name: 'Solana AI hackathon', file: 'Solana AI hackathon.json'}
-    ];
+    // Check for chatid in URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const chatId = urlParams.get('chatid');
 
-    // Clear existing options
-    groupSelect.innerHTML = '<option value="">Choose a group...</option>';
+    if (chatId) {
+        // Hide group selection and load specific chat
+        document.getElementById('group-selection').classList.add('hidden');
+        await loadChatData(chatId);
+    } else {
+        // Show group selection dropdown
+        const groupSelect = document.getElementById('group-select');
+        
+        // List of available groups with their filenames
+        const groups = [
+            {name: 'Agentic Robotics', file: 'Agentic Robotics.json'},
+            {name: 'Ai Code Chat', file: 'Ai Code Chat.json'},
+            {name: 'AI Startup Chat', file: 'AI Startup Chat.json'},
+            {name: 'Breaking Ai News & Links', file: 'Breaking Ai News & Links.json'},
+            {name: 'Events & Conferences', file: 'Events & Conferences.json'},
+            {name: 'General Ai Chat', file: 'General Ai Chat.json'},
+            {name: 'Solana AI hackathon', file: 'Solana AI hackathon.json'}
+        ];
 
-    // Populate dropdown
-    groups.forEach(group => {
-        const option = document.createElement('option');
-        option.value = group.file;
-        option.textContent = group.name;
-        groupSelect.appendChild(option);
-    });
+        // Clear existing options
+        groupSelect.innerHTML = '<option value="">Choose a group...</option>';
 
-    // Handle group selection
-    groupSelect.addEventListener('change', async () => {
-        const selectedFile = groupSelect.value;
-        if (!selectedFile) {
-            document.getElementById('results').classList.add('hidden');
-            return;
-        }
+        // Populate dropdown
+        groups.forEach(group => {
+            const option = document.createElement('option');
+            option.value = group.file;
+            option.textContent = group.name;
+            groupSelect.appendChild(option);
+        });
 
-        // Show loading indicator
-        document.getElementById('loading').classList.remove('hidden');
-        document.getElementById('results').classList.add('hidden');
-
-        try {
-            // Load the JSON data for the selected group
-            const response = await fetch(`analyzed_data/${selectedFile}`);
-            if (!response.ok) {
-                throw new Error('Failed to load group data');
+        // Handle group selection
+        groupSelect.addEventListener('change', async () => {
+            const selectedFile = groupSelect.value;
+            if (!selectedFile) {
+                document.getElementById('results').classList.add('hidden');
+                return;
             }
-            const data = await response.json();
-            displayResults(data);
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to load group data. Please try again.');
-        } finally {
-            document.getElementById('loading').classList.add('hidden');
+
+            await loadChatData(selectedFile);
+        });
+    }
+}
+
+// Load chat data from file
+async function loadChatData(fileId) {
+    // Show loading indicator
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('results').classList.add('hidden');
+
+    try {
+        // Load the JSON data for the selected chat
+        const response = await fetch(`analyzed_data/${fileId}.json`);
+        if (!response.ok) {
+            throw new Error('Failed to load chat data');
         }
-    });
+        const data = await response.json();
+        displayResults(data);
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to load chat data. Please try again.');
+    } finally {
+        document.getElementById('loading').classList.add('hidden');
+    }
 }
 
 // Initialize on page load
@@ -216,6 +232,7 @@ function displayResults(data) {
     displayHappiestDays(data);
     displaySaddestDays(data);
     displayViralMessages(data);
+    displayMediaStats(data);
     displaySharedLinks(data);
     
     // Display holiday greeting
@@ -420,6 +437,63 @@ function displayViralMessages(data) {
         .join('');
     
     document.getElementById('viral-messages').innerHTML = viralHtml;
+}
+
+function displayMediaStats(data) {
+    if (!data.media_stats) {
+        console.log('No media stats found');
+        return;
+    }
+
+    // Display media distribution
+    const distributionHtml = Object.entries(data.media_stats.media_by_type)
+        .map(([type, stats]) => `
+            <div class="flex items-center justify-between p-2 bg-indigo-50 rounded hover:bg-indigo-100
+                transition-all duration-200 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
+                <span class="font-medium capitalize">${type}</span>
+                <div class="text-sm">
+                    <span class="font-semibold">${stats.count}</span>
+                    <span class="text-gray-600">(${stats.percentage}%)</span>
+                </div>
+            </div>
+        `)
+        .join('');
+    document.getElementById('media-distribution').innerHTML = distributionHtml;
+
+    // Display top media sharers
+    const sharersHtml = data.media_stats.top_media_sharers
+        .map((user, index) => `
+            <div class="flex items-center justify-between p-2 ${index % 2 === 0 ? 'bg-purple-50' : 'bg-purple-100'}
+                rounded hover:bg-purple-200 transition-all duration-200 cursor-pointer"
+                onclick="createConfetti(event.clientX, event.clientY)">
+                <span class="font-medium">${user.name}</span>
+                <span class="text-purple-700">${user.count} shared</span>
+            </div>
+        `)
+        .join('');
+    document.getElementById('top-media-sharers').innerHTML = sharersHtml;
+
+    // Display most reacted media
+    const reactedMediaHtml = data.media_stats.most_reacted_media
+        .map(item => `
+            <div class="p-3 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all duration-200
+                transform hover:scale-105 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="font-medium capitalize">${item.type}</span>
+                        <span class="text-gray-600 text-sm"> by ${item.sender}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-pink-600">❤️ ${item.reactions}</span>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    ${item.timestamp}
+                </div>
+            </div>
+        `)
+        .join('');
+    document.getElementById('most-reacted-media').innerHTML = reactedMediaHtml;
 }
 
 function displaySharedLinks(data) {
