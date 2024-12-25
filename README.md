@@ -4,8 +4,8 @@ A festive web application that analyzes WhatsApp chat exports to create beautifu
 
 This was also an experiement of writing an entire project where:  
 
-1. ChatGPT o1-Pro was the Product Manager  
-2. Roo-Cline powered by Claude 3.5 Sonnet was the Developer and QA  
+1. [ChatGPT](https://openai.com/index/chatgpt/) o1-Pro was the Product Manager  
+2. [Roo-Cline](https://github.com/RooVetGit/Roo-Cline) powered by [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet) (on [AWS Bedkrock](https://aws.amazon.com/bedrock/)) was the Developer and QA  
 3. A human ([@zoharbabin](https://github.com/zoharbabin/)) as the investor and manager  
 
 ## Features 🌟
@@ -32,7 +32,7 @@ This was also an experiement of writing an entire project where:
 - **Backend**: FastAPI (Python)
 - **Frontend**: HTML, JavaScript, Tailwind CSS
 - **AI/ML**: 
-  - Claude AI via AWS Bedrock for insights
+  - Claude AI via AWS Bedrock for insights (utilizing LiteLLM makes it simple to replace the model provider)
   - Parallel sentiment analysis processing
   - Smart message batching
 - **Visualization**: 
@@ -49,7 +49,6 @@ This was also an experiement of writing an entire project where:
 - Python 3.9+
 - AWS Account with Bedrock access
 - AWS credentials configured
-- Node.js (optional, for development)
 
 ## Setup 🚀
 
@@ -158,7 +157,7 @@ holiday-ai-hackerspace/
 - Caching system with MD5 hashing
 - Comprehensive error handling
 - Viral message detection algorithm
-- Shared link analysis
+- Top shared link analysis
 
 ### Frontend (static/ & gh_static_front/)
 - Responsive design with Tailwind CSS
@@ -189,12 +188,34 @@ holiday-ai-hackerspace/
 
 Future improvements could include:
 
-1. [ ] Support for more chat export formats (Facebook Messenger, Discord, etc.)
-2. [ ] Export reports as PDF
-3. [ ] More AI-powered insights and additional visualization types
-4. [ ] Enhanced sentiment analysis with emotion detection
-5. [ ] Topic clustering and trend analysis
-6. [ ] Custom theme support
+## **Platform Expansion**
+- [ ] Add support for chat exports from Telegram.
+- [ ] Add support for chat exports from Facebook Messenger.
+- [ ] Add support for chat exports from Discord.
+- [ ] Add support for chat exports from Slack.
+
+## **Privacy and Data Handling**
+- [ ] Anonyize phone numbers replacing with fun nick names.
+
+## **Export and Sharing**
+- [ ] Enable exporting summaries as PDF files.  
+- [ ] Create shareable links for generated summaries.  
+
+## **Accessibility**
+- [ ] Add ARIA labels for better accessibility.  
+  - [ ] Ensure charts and interactive elements are screen-reader friendly.  
+
+## **Enhanced Insights**
+- [ ] Implement emotion detection (e.g., joy, sadness, anger) in sentiment analysis.  
+  - [ ] Add topic clustering to summarize recurring themes in conversations.  
+- [ ] Highlight trending messages with engagement trends over time.  
+  - [ ] Correlate viral messages with shared links or key events.  
+- [ ] Create badges and streaks visualization on key members with fun insights on members.
+
+## **Customization and Visualization**
+- [ ] Allow users to filter data by date range or specific users.  
+- [ ] Create interactive heatmaps to visualize activity trends.  
+- [ ] Introduce zoomable timelines with drag-and-scroll functionality.  
 
 ## License 📄
 
