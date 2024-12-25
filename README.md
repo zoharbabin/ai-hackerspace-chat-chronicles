@@ -2,6 +2,12 @@
 
 A festive web application that analyzes WhatsApp chat exports to create beautiful visualizations and AI-powered insights about your group conversations. Perfect for celebrating your group's year in messages!
 
+This was also an experiement of writing an entire project where:  
+
+1. ChatGPT o1-Pro was the Product Manager  
+2. Roo-Cline powered by Claude 3.5 Sonnet was the Developer and QA  
+3. A human ([@zoharbabin](https://github.com/zoharbabin/)) as the investor and manager  
+
 ## Features 🌟
 
 - **Interactive Timeline**: Visualize chat activity over time
@@ -153,10 +159,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments 💝
 
-- Built with Roo-Cline
+- Built with Roo-Cline, ChatGPT and @zoharbabin
 - Visualization libraries: Chart.js and D3.js
 - Tailwind CSS for styling
-- All contributors and users of this project
 
 ---
 
