@@ -447,16 +447,19 @@ function displayMediaStats(data) {
 
     // Display media distribution
     const distributionHtml = Object.entries(data.media_stats.media_by_type)
-        .map(([type, stats]) => `
-            <div class="flex items-center justify-between p-2 bg-indigo-50 rounded hover:bg-indigo-100
-                transition-all duration-200 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
-                <span class="font-medium capitalize">${type}</span>
-                <div class="text-sm">
-                    <span class="font-semibold">${stats.count}</span>
-                    <span class="text-gray-600">(${stats.percentage}%)</span>
+        .map(([type, count]) => {
+            const percentage = data.media_stats.media_type_percentages[type];
+            return `
+                <div class="flex items-center justify-between p-2 bg-indigo-50 rounded hover:bg-indigo-100
+                    transition-all duration-200 cursor-pointer" onclick="createConfetti(event.clientX, event.clientY)">
+                    <span class="font-medium capitalize">${type}</span>
+                    <div class="text-sm">
+                        <span class="font-semibold">${count}</span>
+                        <span class="text-gray-600">(${percentage}%)</span>
+                    </div>
                 </div>
-            </div>
-        `)
+            `;
+        })
         .join('');
     document.getElementById('media-distribution').innerHTML = distributionHtml;
 
