@@ -293,6 +293,11 @@ function displayResults(data) {
     
     // Display holiday greeting
     document.getElementById('holiday-greeting').textContent = data.holiday_greeting;
+
+    // Display chat poem
+    if (data.chat_poem) {
+        document.getElementById('chat-poem').textContent = data.chat_poem;
+    }
     
     // Add some festive animation
     setTimeout(() => {

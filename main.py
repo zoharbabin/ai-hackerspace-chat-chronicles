@@ -159,6 +159,7 @@ class ChatSummary(BaseModel):
     saddest_days: List[SentimentData]
     viral_messages: List[ViralMessage]
     shared_links: List[SharedLink]
+    chat_poem: str
 
 def calculate_md5(content: bytes) -> str:
     """Calculate MD5 hash of file content."""
@@ -541,7 +542,8 @@ async def analyze_chat(file: UploadFile = File(...)):
         1. Key topics discussed (max 5)
         2. Three most memorable moments
         3. A festive holiday greeting based on the chat context
-        
+        4. Create a comedic rhyming poem (at least 8 lines) that tells a story about the group's memorable moments and inside jokes. Make it festive and entertaining!
+
         Chat sample: {' '.join(samples)}"""
         
         # Get AI insights using instructor with structured output
@@ -728,7 +730,8 @@ async def analyze_chat(file: UploadFile = File(...)):
             happiest_days=happiest_days,
             saddest_days=saddest_days,
             viral_messages=viral_messages,
-            shared_links=shared_links
+            shared_links=shared_links,
+            chat_poem=response.chat_poem
         )
         
         total_time = time.time() - start_time
