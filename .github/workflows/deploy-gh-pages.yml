@@ -1,0 +1,37 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # or whichever branch you want to trigger on
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      # If you need Node for a build step, uncomment these lines:
+      # - name: Set up Node
+      #   uses: actions/setup-node@v3
+      #   with:
+      #     node-version: '16'
+
+      # If you have a build process (e.g., npm run build),
+      # add those steps here. Otherwise, you can skip directly to deployment.
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          # The directory you want to publish to GitHub Pages:
+          publish_dir: gh_static_front
+          
+          # GitHub token for authentication
+          personal_token: ${{ secrets.GITHUB_TOKEN }}
+
+          # The branch where GitHub Pages will be served from
+          publish_branch: gh-pages
+
+          # Overwrite the entire gh-pages branch each time
+          force_orphan: true
