@@ -105,6 +105,36 @@ uvicorn main:app --reload
 
 The application will be available at http://localhost:8000
 
+## Testing 🧪
+
+The project includes a comprehensive test suite in the `tests/` directory:
+
+### Test Files
+- `test_anonymizer.py`: Tests the phone number anonymization functionality
+  - Handles various phone number formats (North American, International)
+  - Tests Unicode control character handling
+  - Verifies anonymization patterns and username display
+  - Ensures generated anonymous names are unique
+  - Covers edge cases like short numbers and different separators
+
+- `test_system_messages.py`: Tests WhatsApp system message handling
+  - Validates group management message detection
+  - Tests security-related message handling
+  - Verifies phone number change notifications
+  - Handles message deletion notifications
+  - Tests Unicode control character cleaning
+
+### Running Tests
+To run the test suite:
+```bash
+python -m pytest tests/
+```
+
+For verbose output with test details:
+```bash
+python -m pytest -v tests/
+```
+
 ## Usage 📱
 
 1. Export your WhatsApp chat:
@@ -138,6 +168,9 @@ holiday-ai-hackerspace/
 ├── requirements.txt      # Python dependencies
 ├── .env.example         # Example environment variables
 ├── .gitignore          # Git ignore rules
+├── tests/              # Test suite directory
+│   ├── test_anonymizer.py       # Phone number anonymization tests
+│   └── test_system_messages.py  # System message handling tests
 ├── static/             # Upload interface assets
 │   ├── index.html      # Interface for chat file upload
 │   └── app.js          # Upload handling and API integration
