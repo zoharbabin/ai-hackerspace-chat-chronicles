@@ -22,9 +22,9 @@ from litellm import completion
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Configure logging with colors
+# Configure logging with colors and performance metrics
 class ColorFormatter(logging.Formatter):
-    """Custom formatter adding colors to levelnames"""
+    """Custom formatter adding colors to levelnames and performance tracking"""
     
     COLORS = {
         'DEBUG': '\033[94m',    # Blue
@@ -41,26 +41,34 @@ class ColorFormatter(logging.Formatter):
         if levelname in self.COLORS:
             record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
         
-        # Add file name and line number
-        record.location = f"{record.filename}:{record.lineno}"
+        # Add file name and line number for errors and warnings
+        if record.levelno >= logging.WARNING:
+            record.location = f"{record.filename}:{record.lineno}"
+        else:
+            record.location = record.filename
         
+        # Add elapsed time for performance logs
+        if hasattr(record, 'elapsed'):
+            record.msg = f"{record.msg} (took {record.elapsed:.2f}s)"
+            
         return super().format(record)
 
 # Set up logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)  # Default to INFO level
 
 # Console handler with color formatter
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-formatter = ColorFormatter('%(asctime)s - %(location)s - %(levelname)s - %(message)s')
+ch.setLevel(logging.INFO)
+formatter = ColorFormatter('%(asctime)s [%(levelname)s] %(location)s - %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 # Load environment variables and configuration
-start_time = time.time()
+env_load_start = time.time()
 load_dotenv()
-logger.info("Environment variables loaded in %.2fs", time.time() - start_time)
+env_load_time = time.time() - env_load_start
+logger.debug("Environment variables loaded", extra={"elapsed": env_load_time})
 
 # Check for required environment variables
 required_vars = {
@@ -72,17 +80,18 @@ required_vars = {
 
 missing_vars = [name for var, name in required_vars.items() if not os.getenv(var)]
 if missing_vars:
-    logger.error("Missing required environment variables: %s", ', '.join(missing_vars))
+    logger.critical("Missing required environment variables: %s. Application cannot start.",
+                   ', '.join(missing_vars))
     raise ValueError(f"Required environment variables are missing: {', '.join(missing_vars)}")
 
 # Load model configurations
 SENTIMENT_MODEL = os.getenv("SENTIMENT_MODEL")
 CHAT_INSIGHTS_MODEL = os.getenv("CHAT_INSIGHTS_MODEL")
-logger.info("Using models - Sentiment: %s, Chat Insights: %s", SENTIMENT_MODEL, CHAT_INSIGHTS_MODEL)
+logger.info("Models configured - Sentiment: %s, Chat Insights: %s",
+           SENTIMENT_MODEL.split('/')[-1], CHAT_INSIGHTS_MODEL.split('/')[-1])
 
-# Initialize FastAPI app
+# Initialize FastAPI app and core services
 app = FastAPI(title="WhatsApp Chat Summary")
-logger.info("FastAPI application initialized")
 
 # Setup CORS
 app.add_middleware(
@@ -92,28 +101,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-logger.debug("CORS middleware configured")
 
 # Initialize instructor client with LiteLLM
 client = instructor.from_litellm(completion)
-logger.info("Instructor client initialized with LiteLLM")
+logger.info("API server and LLM client initialized successfully")
 
-# Create static and cache directories if they don't exist
+# Setup static directories and cache
 Path("static").mkdir(exist_ok=True)
 Path("gh_static_front/analyzed_data").mkdir(parents=True, exist_ok=True)
-logger.debug("Static and analyzed_data directories checked/created")
-
-# Cache directory path
 CACHE_DIR = Path("gh_static_front/analyzed_data")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/gh_static_front", StaticFiles(directory="gh_static_front"), name="gh_static_front")
-logger.debug("Static files mounted")
 
 @app.get("/")
 async def root():
-    logger.debug("Root endpoint accessed - redirecting to index.html")
     return RedirectResponse(url="/static/index.html")
 
 class UserActivity(BaseModel):
@@ -245,8 +248,7 @@ WHATSAPP_PATTERNS = [
 
 @functools.cache
 def get_chat_insights(prompt_text: str) -> ChatSummary:
-    task_start_time = time.time()
-    logger.info("Requesting chat insights from Claude")
+    insights_start = time.time()
     try:
         response = client.chat.completions.create(
             model=CHAT_INSIGHTS_MODEL,
@@ -255,11 +257,12 @@ def get_chat_insights(prompt_text: str) -> ChatSummary:
             response_model=ChatSummary,
             caching=True
         )
-        logger.info("Chat insights received in %.2fs", time.time() - task_start_time)
+        insights_time = time.time() - insights_start
+        logger.info("Generated chat insights", extra={"elapsed": insights_time})
         return response
-    except (ConnectionError, TimeoutError, ValueError) as e:
-        logger.error("Error getting chat insights: %s", str(e))
-        raise
+    except (Exception) as e:
+        logger.error("Failed to generate chat insights: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate chat insights") from e
 
 # Common words to filter out
 COMMON_WORDS = {
@@ -328,16 +331,11 @@ def process_message_stats(message: str) -> tuple[list, dict, dict]:
 
 def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
     """Parse and clean WhatsApp chat log, returning the cleaned DataFrame and media items."""
-    task_start_time = time.time()
-    logger.info("Starting WhatsApp chat parsing")
-    
+    parse_start = time.time()
     messages = []
     media_items = []
     lines = content.split('\n')
     current_message = ''
-    
-    logger.debug("Processing %d lines of chat", len(lines))
-    parsed_count = 0
     
     for line_num, line in enumerate(lines, 1):
         matched = False
@@ -351,7 +349,6 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                     current_message = ''
                 
                 timestamp, sender, message = match.groups()
-                # Clean the sender and message
                 sender = clean_message(sender)
                 message = clean_message(message)
 
@@ -359,17 +356,13 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                 media_match = MEDIA_PATTERN.search(message)
                 if media_match:
                     try:
-                        # Extract media type from the message
                         media_type = None
-                        
-                        # Check for "X omitted" pattern
                         if 'omitted' in message.lower():
                             for type_name in VALID_MEDIA_TYPES:
                                 if type_name in message.lower():
                                     media_type = type_name
                                     break
                         
-                        # Check for file extensions
                         if not media_type:
                             for ext, type_name in MEDIA_TYPE_MAP.items():
                                 if f'.{ext}' in message.lower():
@@ -377,29 +370,17 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                                     break
                         
                         if media_type:
-                            # Create the media item
-                            media_item = MediaItem(
+                            media_items.append(MediaItem(
                                 type=media_type,
                                 sender=sender,
                                 timestamp=timestamp,
-                                reactions=0  # Will be updated later when processing reactions
-                            )
-                            
-                            # Add to media items list
-                            media_items.append(media_item)
-                            
-                            # Replace the original message with a standardized format
+                                reactions=0
+                            ))
                             message = f"[Media: {media_type.upper()}] shared by {sender}"
-                            
-                            # Log the media item for debugging
-                            logger.debug("Processed media item: %s from %s at %s", media_type, sender, timestamp)
-                        else:
-                            logger.debug("Could not determine media type for message: %s", message)
-                        
                     except (AttributeError, IndexError) as e:
-                        logger.error("Error processing media message at line %d: %s", line_num, str(e))
+                        logger.warning("Failed to process media at line %d: %s", line_num, str(e))
 
-                # Skip system messages - message is already cleaned
+                # Skip system messages
                 if any(pattern.match(message) for pattern in SYSTEM_MESSAGE_PATTERNS):
                     continue
                     
@@ -416,7 +397,6 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                             continue
                     
                     if parsed_timestamp is None:
-                        logger.warning("Could not parse timestamp at line %d: %s", line_num, timestamp)
                         continue
                     
                     messages.append({
@@ -424,26 +404,21 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                         'sender': sender.strip(),
                         'message': message.strip()
                     })
-                    
-                    parsed_count += 1
                     matched = True
                     break
                 except (ValueError, AttributeError) as e:
-                    logger.error("Error parsing message at line %d: %s", line_num, str(e))
+                    logger.error("Failed to parse message at line %d: %s", line_num, str(e))
                     continue
         
         if not matched and line.strip() and messages:  # Continuation of previous message
             current_message += ' ' + line
     
     if not messages:
-        logger.warning("No messages were successfully parsed")
-        logger.debug("First few lines of content: %s", lines[:5])
         return pd.DataFrame(columns=['timestamp', 'sender', 'message']), []
     
     df = pd.DataFrame(messages)
-    processing_time = time.time() - task_start_time
-    logger.info("Successfully parsed %d messages and %d media items in %.2fs", len(df), len(media_items), processing_time)
-    logger.debug("Parsing rate: %.1f messages/second", len(df)/processing_time)
+    parse_time = time.time() - parse_start
+    logger.info("Chat parsing completed", extra={"elapsed": parse_time})
     
     return df, media_items
 
@@ -546,6 +521,8 @@ sentiment_cache = {}
 
 async def analyze_sentiment_batch(messages_batch: List[str]) -> float:
     """Analyze sentiment for a batch of messages, excluding media-related messages."""
+    batch_start = time.time()
+    
     # Filter out media messages
     filtered_messages = [
         msg for msg in messages_batch
@@ -560,72 +537,76 @@ async def analyze_sentiment_batch(messages_batch: List[str]) -> float:
     if cache_key in sentiment_cache:
         return sentiment_cache[cache_key]
 
-    # Use semantic batching - group similar messages together
-    prompt = f"""Rate the overall sentiment of these messages from -1 (negative) to 1 (positive). Return only a number.
-    Messages: {' '.join(filtered_messages)}"""
-    
     try:
+        prompt = f"""Rate the overall sentiment of these messages from -1 (negative) to 1 (positive). Return only a number.
+        Messages: {' '.join(filtered_messages)}"""
+        
         response = client.chat.completions.create(
             model=SENTIMENT_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,  # Increased to handle longer responses
+            max_tokens=150,
             temperature=0,
             response_model=SentimentScore
         )
         score = max(min(response.score, 1.0), -1.0)
         sentiment_cache[cache_key] = score
+        
+        batch_time = time.time() - batch_start
+        if batch_time > 2.0:  # Log only if processing took more than 2 seconds
+            logger.info("Sentiment batch processed", extra={"elapsed": batch_time})
+            
         return score
-    except (ConnectionError, TimeoutError, ValueError) as e:
-        logger.warning("Error in sentiment analysis: %s", str(e))
+    except (Exception) as e:
+        logger.error("Sentiment analysis failed: %s", str(e), exc_info=True)
         return 0.0
 
 async def analyze_sentiment_parallel(daily_messages: Dict[datetime, List[str]], batch_size: int = 25) -> List[SentimentData]: # pylint: disable=unused-argument
     """Analyze sentiment for multiple days in parallel using optimized batching."""
+    parallel_start = time.time()
     sentiment_data = []
     semaphore = asyncio.Semaphore(5)  # Balance between speed and rate limits
     
-    # Group consecutive days into batches for more accurate sentiment trends
+    # Group consecutive days into batches
     date_groups = []
     current_group = []
     dates = sorted(daily_messages.keys())
     
     for i, date in enumerate(dates):
         current_group.append(date)
-        # Create a new group every 3 days or at the end
         if len(current_group) == 3 or i == len(dates) - 1:
             date_groups.append(current_group)
             current_group = []
     
     async def process_date_group(dates):
+        group_start = time.time()
         async with semaphore:
-            # Collect representative messages from each day
             group_messages = []
             batch_results = []
             
             for date in dates:
                 day_messages = daily_messages[date]
-                # Get representative messages spread throughout the day
                 if len(day_messages) > 5:
-                    # Take messages from start, middle, and end of day
                     indices = [0, len(day_messages)//4, len(day_messages)//2,
                              (3*len(day_messages))//4, len(day_messages)-1]
                     group_messages.extend([day_messages[i] for i in indices])
                 else:
                     group_messages.extend(day_messages)
                 
-                # If group is getting too large, process current batch
                 if len(group_messages) >= 15:
                     sentiment = await analyze_sentiment_batch(group_messages)
                     for d in dates:
-                        if d <= date:  # Only process dates up to current point
+                        if d <= date:
                             batch_results.append((d, sentiment, daily_messages[d]))
-                    group_messages = []  # Reset for next batch
+                    group_messages = []
             
-            # Process any remaining messages
             if group_messages:
                 sentiment = await analyze_sentiment_batch(group_messages)
                 remaining_dates = [d for d in dates if not any(d == r[0] for r in batch_results)]
                 batch_results.extend((date, sentiment, daily_messages[date]) for date in remaining_dates)
+            
+            group_elapsed = time.time() - group_start
+            if group_elapsed > 5.0:  # Log only if processing took more than 5 seconds
+                logger.info("Date group processed", extra={"elapsed": group_elapsed})
             
             return batch_results
     
@@ -633,16 +614,7 @@ async def analyze_sentiment_parallel(daily_messages: Dict[datetime, List[str]], 
     tasks = [process_date_group(group) for group in date_groups]
     results = await asyncio.gather(*tasks)
     
-    # Flatten results and create SentimentData objects
-    for group_results in results:
-        for date, sentiment, messages in group_results:
-            sentiment_data.append(SentimentData(
-                date=str(date),
-                sentiment=sentiment,
-                messages=messages[:3]  # Keep top 3 messages for context
-            ))
-    
-    # Flatten results and create SentimentData objects with deduplication
+    # Process results with deduplication
     seen_dates = set()
     for batch_results in results:
         for date, sentiment, messages in batch_results:
@@ -651,30 +623,28 @@ async def analyze_sentiment_parallel(daily_messages: Dict[datetime, List[str]], 
                 sentiment_data.append(SentimentData(
                     date=str(date),
                     sentiment=sentiment,
-                    messages=messages[:2]  # Further limit messages stored
+                    messages=messages[:2]  # Limit stored messages
                 ))
     
-    # Sort by date before returning
+    elapsed = time.time() - parallel_start
+    logger.info("Sentiment analysis completed", extra={"elapsed": elapsed})
+    
     return sorted(sentiment_data, key=lambda x: x.date)
 
 @app.post("/api/analyze")
 async def analyze_chat(file: UploadFile = File(...)):
     """Analyze uploaded WhatsApp chat log."""
-    task_start_time = time.time()
+    analysis_start = time.time()
     logger.info("Starting analysis of file: %s", file.filename)
     
     try:
-        # Read file content
         content = await file.read()
-        
-        # Calculate MD5 hash of file content
         file_hash = calculate_md5(content)
-        logger.info("File hash: %s", file_hash)
         
         # Check cache first
         cached_result = get_cached_result(file_hash)
         if cached_result:
-            logger.info("Returning cached analysis for %s", file.filename)
+            logger.info("Cache hit for %s (%s)", file.filename, file_hash[:8])
             return JSONResponse(content={
                 "md5": file_hash,
                 **cached_result.dict()
@@ -682,18 +652,20 @@ async def analyze_chat(file: UploadFile = File(...)):
             
         # If not cached, proceed with analysis
         chat_text = content.decode('utf-8')
-        logger.debug("File decoded successfully, size: %d characters", len(chat_text))
         
-        # First parse and clean all messages and extract media items
+        # Parse and analyze chat content
         df, media_items = parse_whatsapp_chat(chat_text)
         
         if len(df) == 0:
-            logger.error("No messages could be parsed from the chat file")
-            raise HTTPException(status_code=400, detail="No messages could be parsed from the chat file. Please ensure this is a valid WhatsApp chat export.")
+            logger.error("Chat parsing failed for %s - no valid messages found", file.filename)
+            raise HTTPException(
+                status_code=400,
+                detail="No messages could be parsed from the chat file. Please ensure this is a valid WhatsApp chat export."
+            )
         
-        # First analyze media statistics
-        logger.debug("Analyzing media statistics")
+        # Analyze media statistics
         media_stats = analyze_media_stats(df, media_items)
+        logger.info("Parsed %d messages and %d media items", len(df), len(media_items))
         
         # Create a clean DataFrame without media messages for text analysis
         clean_df = df[~df['message'].apply(lambda x: bool(MEDIA_PATTERN.search(str(x))))]
@@ -756,7 +728,7 @@ async def analyze_chat(file: UploadFile = File(...)):
         logger.debug("Processing %d messages for viral threads", len(messages_by_time))
         
         # Window for considering messages part of the same thread (4 hours)
-        THREAD_WINDOW = pd.Timedelta(hours=4)
+        thread_window = pd.Timedelta(hours=4)
         
         class MessageThread:
             def __init__(self, message: str, timestamp: pd.Timestamp):
@@ -766,7 +738,7 @@ async def analyze_chat(file: UploadFile = File(...)):
                 self.reactions = len(EMOJI_PATTERN.findall(message))
             
             def is_active(self, current_time: pd.Timestamp) -> bool:
-                return (current_time - self.start_time) <= THREAD_WINDOW
+                return (current_time - self.start_time) <= thread_window
             
             def is_related(self, message: str) -> bool:
                 """Check if a message is likely a reply to the thread."""
@@ -882,7 +854,7 @@ async def analyze_chat(file: UploadFile = File(...)):
                     thread_start = row['timestamp']
                     thread_messages = messages_by_time[
                         (messages_by_time['timestamp'] > thread_start) &
-                        (messages_by_time['timestamp'] <= thread_start + THREAD_WINDOW)
+                        (messages_by_time['timestamp'] <= thread_start + thread_window)
                     ]
                     
                     stats['replies'] += len(thread_messages)
@@ -924,8 +896,8 @@ async def analyze_chat(file: UploadFile = File(...)):
             media_stats=media_stats
         )
         
-        total_time = time.time() - task_start_time
-        logger.info("Analysis completed in %.2fs", total_time)
+        analysis_time = time.time() - analysis_start
+        logger.info("Analysis completed", extra={"elapsed": analysis_time})
         
         # Save result to cache
         save_to_cache(file_hash, summary)
