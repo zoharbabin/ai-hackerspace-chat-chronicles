@@ -204,7 +204,8 @@ def save_to_cache(file_hash: str, result: ChatSummary):
         logger.error("Error saving to cache: %s", str(e))
 
 # Pre-compile regex patterns
-EMOJI_PATTERN = re.compile(r'[\U0001F300-\U0001F9FF]')
+# Exclude skin tone modifiers (U+1F3FB to U+1F3FF) from emoji detection
+EMOJI_PATTERN = re.compile(r'[\U0001F300-\U0001F9FF](?<![\U0001F3FB-\U0001F3FF])')
 WORD_PATTERN = re.compile(r'\w+')
 # Unicode control characters to remove
 UNICODE_CONTROL_CHARS = re.compile(r'[\u200e\u200f\u202a-\u202f]+')
