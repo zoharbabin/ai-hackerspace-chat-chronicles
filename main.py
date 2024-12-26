@@ -21,6 +21,7 @@ import instructor
 from litellm import completion
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from anonymizer import PhoneAnonymizer
 
 # Configure logging with colors and performance metrics
 class ColorFormatter(logging.Formatter):
@@ -217,8 +218,8 @@ def save_to_cache(file_hash: str, result: ChatSummary):
 # Exclude skin tone modifiers (U+1F3FB to U+1F3FF) from emoji detection
 EMOJI_PATTERN = re.compile(r'[\U0001F300-\U0001F9FF](?<![\U0001F3FB-\U0001F3FF])')
 WORD_PATTERN = re.compile(r'\w+')
-# Unicode control characters to remove
-UNICODE_CONTROL_CHARS = re.compile(r'[\u200e\u200f\u202a-\u202f]+')
+# Unicode control characters to remove (including zero-width spaces and other invisible characters)
+UNICODE_CONTROL_CHARS = re.compile(r'[\u200e\u200f\u202a-\u202f\u2060-\u2069\ufeff\u200b-\u200d\u2800]+')
 
 def clean_message(text: str) -> str:
     """Remove Unicode control characters and normalize whitespace."""
@@ -246,9 +247,10 @@ MEDIA_TYPE_MAP: dict[str, str] = {
 SYSTEM_MESSAGE_PATTERNS = [
     re.compile(r'.*joined using this group\'s invite link'),  # Group joins
     re.compile(r'.*created this group'),  # Group creation
-    re.compile(r'Your security code with.*'),  # Security code changes
+    re.compile(r'.*added.*'),  # Added member messages
+    re.compile(r'Your security code with .*? changed\.'),  # Security code changes (more specific pattern)
     re.compile(r'.*changed their phone number'),  # Phone number changes
-    re.compile(r'Messages and calls are end-to-end encrypted.*'),  # Encryption notice
+    re.compile(r'.*Messages and calls are end-to-end encrypted.*'),  # Encryption notice (allow any prefix)
     re.compile(r'This message was deleted'),  # Deleted messages
 ]
 WHATSAPP_PATTERNS = [
@@ -340,8 +342,47 @@ def process_message_stats(message: str) -> tuple[list, dict, dict]:
     
     return emojis, Counter(emojis), Counter(words)
 
+def anonymize_chat_content(content: str) -> str:
+    """
+    Anonymize phone numbers in chat content while maintaining consistency.
+    Returns the anonymized content.
+    """
+    # Dictionary to maintain consistent anonymization
+    phone_map = {}
+    anonymizer = PhoneAnonymizer()
+    
+    def replace_phone(match: re.Match) -> str:
+        """Replace phone number while maintaining consistency."""
+        phone = match.group(0)
+        if phone not in phone_map:
+            anon_phone, display = anonymizer.anonymize(phone)
+            phone_map[phone] = (anon_phone, display)
+        return f"{phone_map[phone][1]} ({phone_map[phone][0]})"
+    
+    # Pattern for phone numbers in various formats
+    phone_patterns = [
+        r'\+\d+\s*\(\d+\)\s*\d+[-‑]\d+',  # +1 (123) 456-7890
+        r'\+\d+\s*\d+\s*\d+\s*\d+',       # +44 7464 758875
+        r'\+\d+\s*\d+[-‑]\d+',            # +1-234-567-8900
+        r'\(\d+\)\s*\d+[-‑]\d+',          # (123) 456-7890
+        r'\d+[-‑]\d+[-‑]\d+'              # 123-456-7890
+    ]
+    
+    # Combine patterns into a single regex
+    combined_pattern = '|'.join(f'({p})' for p in phone_patterns)
+    phone_regex = re.compile(combined_pattern)
+    
+    # Replace all phone numbers
+    anonymized_content = phone_regex.sub(replace_phone, content)
+    
+    logger.info("Anonymized %d unique phone numbers", len(phone_map))
+    return anonymized_content
+
 def extract_media_and_clean_chat(content: str) -> tuple[str, List[MediaItem]]:
     """Extract media items and return cleaned chat content without media messages."""
+    # First anonymize any phone numbers in the content
+    content = anonymize_chat_content(content)
+    
     lines = content.split('\n')
     media_items = []
     clean_lines = []
@@ -585,7 +626,7 @@ async def analyze_sentiment_batch(messages_batch: List[str]) -> float:
             logger.info("Sentiment batch processed", extra={"elapsed": batch_time})
             
         return score
-    except (Exception) as e:
+    except (Exception) as e:  # pylint: disable=broad-except
         logger.error("Sentiment analysis failed: %s", str(e), exc_info=True)
         return 0.0
 
