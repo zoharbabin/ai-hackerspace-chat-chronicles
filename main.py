@@ -160,6 +160,15 @@ class MediaStats(BaseModel):
     top_media_sharers: List[UserActivity]
     most_reacted_media: List[MediaItem]
 
+class MessageCategory(BaseModel):
+    category: str
+    subcategory: str
+    messages: List[str]
+    context: str
+    participants: List[str]
+    impact_score: float
+    timestamp: str
+
 class ChatSummary(BaseModel):
     most_active_users: List[UserActivity]
     popular_topics: List[str]
@@ -175,6 +184,7 @@ class ChatSummary(BaseModel):
     shared_links: List[SharedLink]
     chat_poem: str
     media_stats: MediaStats
+    message_categories: List[MessageCategory]
 
 def calculate_md5(content: bytes) -> str:
     """Calculate MD5 hash of file content."""
@@ -585,13 +595,18 @@ async def analyze_sentiment_parallel(daily_messages: Dict[datetime, List[str]], 
             batch_results = []
             
             for date in dates:
-                day_messages = daily_messages[date]
-                if len(day_messages) > 5:
-                    indices = [0, len(day_messages)//4, len(day_messages)//2,
-                             (3*len(day_messages))//4, len(day_messages)-1]
-                    group_messages.extend([day_messages[i] for i in indices])
+                # Filter out media messages first
+                filtered_messages = [
+                    msg for msg in daily_messages[date]
+                    if not MEDIA_PATTERN.search(str(msg))
+                ]
+                
+                if len(filtered_messages) > 5:
+                    indices = [0, len(filtered_messages)//4, len(filtered_messages)//2,
+                             (3*len(filtered_messages))//4, len(filtered_messages)-1]
+                    group_messages.extend([filtered_messages[i] for i in indices])
                 else:
-                    group_messages.extend(day_messages)
+                    group_messages.extend(filtered_messages)
                 
                 if len(group_messages) >= 15:
                     sentiment = await analyze_sentiment_batch(group_messages)
@@ -695,11 +710,29 @@ async def analyze_chat(file: UploadFile = File(...)):
             remaining = df[~df['message'].isin(samples)].sample(n=min(sample_size - len(samples), len(df)))
             samples.extend(remaining['message'].tolist())
         
-        prompt = f"""Analyze this WhatsApp chat and provide insights in the following format:
+        prompt = f"""Analyze this WhatsApp chat and provide comprehensive insights with the following structure:
+
         1. Key topics discussed (max 5)
         2. Three most memorable moments
         3. A festive holiday greeting based on the chat context
         4. Create a comedic rhyming poem (at least 8 lines) that tells a story about the group's memorable moments and inside jokes. Make it festive and entertaining!
+        5. Categorize messages into meaningful groups by analyzing:
+           - Type of interaction (celebration, milestone, discussion, etc.)
+           - Context and significance
+           - Participant dynamics
+           - Impact on team/organization
+           - Cultural significance
+           
+           For each identified category, provide:
+           - Category name and subcategory
+           - Representative messages
+           - Context and significance
+           - Involved participants
+           - Impact score (0.0 to 1.0)
+           - Timestamp
+
+        Don't use predetermined categories - identify natural patterns and groupings that emerge from the content.
+        Consider message context, participant engagement, long-term significance, and cultural dynamics.
 
         Chat sample: {' '.join(samples)}"""
         
@@ -879,7 +912,7 @@ async def analyze_chat(file: UploadFile = File(...)):
         word_counts_converted = {k: int(v) for k, v in word_counts.items()}
         activity_converted = {k: int(v) for k, v in activity.items()}
         
-        # Create summary with properly structured data
+        # Create summary with properly structured data including message categories
         summary = ChatSummary(
             most_active_users=[UserActivity(name=k, count=v) for k, v in most_active_converted.items()],
             popular_topics=response.popular_topics,
@@ -894,7 +927,8 @@ async def analyze_chat(file: UploadFile = File(...)):
             viral_messages=viral_messages,
             shared_links=shared_links,
             chat_poem=response.chat_poem,
-            media_stats=media_stats
+            media_stats=media_stats,
+            message_categories=response.message_categories if hasattr(response, 'message_categories') else []
         )
         
         analysis_time = time.time() - analysis_start

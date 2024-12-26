@@ -231,7 +231,7 @@ function displayResults(data) {
     displayMemorableMoments(data);
     displayHappiestDays(data);
     displaySaddestDays(data);
-    displayViralMessages(data);
+    displayMessageCategories(data);
     displayMediaStats(data);
     displaySharedLinks(data);
     
@@ -406,39 +406,6 @@ function displaySaddestDays(data) {
     document.getElementById('saddest-days').innerHTML = saddestHtml;
 }
 
-function displayViralMessages(data) {
-    if (!data.viral_messages) {
-        console.log('No viral messages found');
-        return;
-    }
-    
-    const viralHtml = data.viral_messages
-        .map(msg => {
-            return `
-                <div class="p-2 bg-purple-50 rounded hover:bg-purple-100 transition-all duration-200 cursor-pointer"
-                    onclick="createConfetti(event.clientX, event.clientY)">
-                    <div class="flex items-start gap-2">
-                        <div class="flex-grow">
-                            <p class="font-medium text-purple-900 mb-1">${msg.message}</p>
-                            <div class="text-xs text-purple-600 flex items-center gap-2 mb-1">
-                                <span class="inline-flex items-center">💬 ${msg.replies}</span>
-                                <span class="inline-flex items-center">❤️ ${msg.reactions}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-sm text-gray-600 border-l-2 border-purple-200 pl-2 mt-1">
-                        ${msg.thread.map(reply => `
-                            <p class="text-sm py-0.5 hover:bg-purple-50 rounded">${reply}</p>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        })
-        .join('');
-    
-    document.getElementById('viral-messages').innerHTML = viralHtml;
-}
-
 function displayMediaStats(data) {
     if (!data.media_stats) {
         console.log('No media stats found');
@@ -532,4 +499,72 @@ function displaySharedLinks(data) {
         .join('');
     
     document.getElementById('shared-links').innerHTML = linksHtml;
+}
+
+function displayMessageCategories(data) {
+    if (!data.message_categories || data.message_categories.length === 0) {
+        console.log('No message categories found');
+        return;
+    }
+
+    const categoryColors = {
+        'celebration': 'from-yellow-50 to-yellow-100',
+        'business': 'from-blue-50 to-blue-100',
+        'team': 'from-green-50 to-green-100',
+        'strategic': 'from-purple-50 to-purple-100',
+        'knowledge': 'from-red-50 to-red-100'
+    };
+
+    const getGradient = (category) => {
+        const baseCategory = Object.keys(categoryColors).find(key =>
+            category.toLowerCase().includes(key.toLowerCase())
+        );
+        return categoryColors[baseCategory] || 'from-gray-50 to-gray-100';
+    };
+
+    const categoriesHtml = data.message_categories
+        .map(category => `
+            <div class="mb-6">
+                <div class="bg-gradient-to-r ${getGradient(category.category)} p-6 rounded-lg shadow-md
+                    hover:shadow-lg transition-all duration-300 cursor-pointer"
+                    onclick="createConfetti(event.clientX, event.clientY)">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">${category.category}</h3>
+                            <p class="text-sm text-gray-600">${category.subcategory}</p>
+                        </div>
+                        <span class="text-sm font-semibold bg-white px-3 py-1 rounded-full shadow">
+                            Impact: ${(category.impact_score * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        ${category.messages.map(msg => `
+                            <div class="bg-white bg-opacity-60 p-3 rounded">
+                                <p class="text-gray-800">${msg}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        ${category.participants.map(participant => `
+                            <span class="text-sm bg-white bg-opacity-70 px-2 py-1 rounded">
+                                ${participant}
+                            </span>
+                        `).join('')}
+                    </div>
+                    
+                    <div class="mt-4 text-sm text-gray-600 italic">
+                        ${category.context}
+                    </div>
+                    
+                    <div class="mt-2 text-xs text-gray-500">
+                        ${category.timestamp}
+                    </div>
+                </div>
+            </div>
+        `)
+        .join('');
+
+    document.getElementById('message-categories').innerHTML = categoriesHtml;
 }
