@@ -306,8 +306,8 @@ def process_message_stats(message: str) -> tuple[list, dict, dict]:
     Process a single message for emojis and words.
     Enhanced to normalize words and filter out media-related terms.
     """
-    # Skip media-related messages entirely
-    if MEDIA_PATTERN.search(str(message)):
+    # Skip media-related messages and media placeholders entirely
+    if MEDIA_PATTERN.search(str(message)) or re.search(r'\[Media:.*\] shared by', str(message)):
         return [], Counter(), Counter()
         
     def normalize_word(word: str) -> str:
@@ -340,32 +340,22 @@ def process_message_stats(message: str) -> tuple[list, dict, dict]:
     
     return emojis, Counter(emojis), Counter(words)
 
-def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
-    """Parse and clean WhatsApp chat log, returning the cleaned DataFrame and media items."""
-    parse_start = time.time()
-    messages = []
-    media_items = []
+def extract_media_and_clean_chat(content: str) -> tuple[str, List[MediaItem]]:
+    """Extract media items and return cleaned chat content without media messages."""
     lines = content.split('\n')
-    current_message = ''
+    media_items = []
+    clean_lines = []
     
-    for line_num, line in enumerate(lines, 1):
-        matched = False
+    for line in lines:
         cleaned_line = clean_message(line)
+        is_media = False
+        
         for pattern in WHATSAPP_PATTERNS:
             match = pattern.match(cleaned_line)
             if match:
-                if current_message:  # Save previous multi-line message
-                    cleaned_current = clean_message(current_message)
-                    messages[-1]['message'] += '\n' + cleaned_current
-                    current_message = ''
-                
                 timestamp, sender, message = match.groups()
-                sender = clean_message(sender)
-                message = clean_message(message)
-
-                # Check for media messages
-                media_match = MEDIA_PATTERN.search(message)
-                if media_match:
+                if MEDIA_PATTERN.search(message):
+                    is_media = True
                     try:
                         media_type = None
                         if 'omitted' in message.lower():
@@ -383,13 +373,40 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
                         if media_type:
                             media_items.append(MediaItem(
                                 type=media_type,
-                                sender=sender,
-                                timestamp=timestamp,
+                                sender=sender.strip(),
+                                timestamp=timestamp.strip('[]'),
                                 reactions=0
                             ))
-                            message = f"[Media: {media_type.upper()}] shared by {sender}"
                     except (AttributeError, IndexError) as e:
-                        logger.warning("Failed to process media at line %d: %s", line_num, str(e))
+                        logger.warning("Failed to process media: %s", str(e))
+                break
+        
+        if not is_media:
+            clean_lines.append(line)
+    
+    return '\n'.join(clean_lines), media_items
+
+def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
+    """Parse WhatsApp chat log, returning the DataFrame. Media handling is done separately."""
+    parse_start = time.time()
+    messages = []
+    lines = content.split('\n')
+    current_message = ''
+    
+    for line_num, line in enumerate(lines, 1):
+        matched = False
+        cleaned_line = clean_message(line)
+        for pattern in WHATSAPP_PATTERNS:
+            match = pattern.match(cleaned_line)
+            if match:
+                if current_message:  # Save previous multi-line message
+                    cleaned_current = clean_message(current_message)
+                    messages[-1]['message'] += '\n' + cleaned_current
+                    current_message = ''
+                
+                timestamp, sender, message = match.groups()
+                sender = clean_message(sender)
+                message = clean_message(message)
 
                 # Skip system messages
                 if any(pattern.match(message) for pattern in SYSTEM_MESSAGE_PATTERNS):
@@ -431,7 +448,7 @@ def parse_whatsapp_chat(content: str) -> tuple[pd.DataFrame, List[MediaItem]]:
     parse_time = time.time() - parse_start
     logger.info("Chat parsing completed", extra={"elapsed": parse_time})
     
-    return df, media_items
+    return df, []  # Return empty list for media_items since we handle them separately
 
 def analyze_media_stats(df: pd.DataFrame, media_items: List[MediaItem]) -> MediaStats:
     """Analyze media sharing statistics with enhanced reaction tracking."""
@@ -534,10 +551,11 @@ async def analyze_sentiment_batch(messages_batch: List[str]) -> float:
     """Analyze sentiment for a batch of messages, excluding media-related messages."""
     batch_start = time.time()
     
-    # Filter out media messages
+    # Filter out media messages and media placeholders
     filtered_messages = [
         msg for msg in messages_batch
-        if not MEDIA_PATTERN.search(str(msg))
+        if not (MEDIA_PATTERN.search(str(msg)) or
+                re.search(r'\[Media:.*\] shared by', str(msg)))
     ]
     
     if not filtered_messages:
@@ -669,8 +687,12 @@ async def analyze_chat(file: UploadFile = File(...)):
         # If not cached, proceed with analysis
         chat_text = content.decode('utf-8')
         
-        # Parse and analyze chat content
-        df, media_items = parse_whatsapp_chat(chat_text)
+        # First extract media items and get clean chat content
+        clean_chat, media_items = extract_media_and_clean_chat(chat_text)
+        logger.info("Found %d media items", len(media_items))
+        
+        # Then parse the clean chat content
+        df, _ = parse_whatsapp_chat(clean_chat)
         
         if len(df) == 0:
             logger.error("Chat parsing failed for %s - no valid messages found", file.filename)
@@ -681,17 +703,14 @@ async def analyze_chat(file: UploadFile = File(...)):
         
         # Analyze media statistics
         media_stats = analyze_media_stats(df, media_items)
-        logger.info("Parsed %d messages and %d media items", len(df), len(media_items))
+        logger.info("Parsed %d messages", len(df))
         
-        # Create a clean DataFrame without media messages for text analysis
-        clean_df = df[~df['message'].apply(lambda x: bool(MEDIA_PATTERN.search(str(x))))]
+        # Then perform analysis on the data (already cleaned of media messages)
+        emoji_counts, word_counts = analyze_chat_stats(df)
         
-        # Then perform analysis on cleaned data (excluding media messages)
-        emoji_counts, word_counts = analyze_chat_stats(clean_df)
-        
-        # Basic statistics from clean data
+        # Basic statistics
         logger.debug("Calculating user activity statistics")
-        most_active = clean_df['sender'].value_counts().head(5).to_dict()
+        most_active = df['sender'].value_counts().head(5).to_dict()
         
         # Get chat insights using Claude via AWS Bedrock
         logger.debug("Preparing prompt for Claude analysis")
@@ -699,9 +718,12 @@ async def analyze_chat(file: UploadFile = File(...)):
         sample_size = min(100, len(df))
         samples = []
         
-        # Get messages from different time periods for better coverage
+        # Get messages from different time periods for better coverage, excluding media placeholders
         for period in pd.date_range(df['timestamp'].min(), df['timestamp'].max(), periods=5):
-            period_messages = df[df['timestamp'].dt.date == period.date()]['message'].tolist()
+            period_messages = df[
+                (df['timestamp'].dt.date == period.date()) &
+                (~df['message'].str.contains(r'\[Media:.*\] shared by', regex=True, na=False))
+            ]['message'].tolist()
             if period_messages:
                 samples.extend(period_messages[:20])  # Up to 20 messages per period
         
