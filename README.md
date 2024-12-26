@@ -10,11 +10,11 @@ This was also an experiement of writing an entire project where:
 
 ## Features 🌟
 
-- **Interactive Timeline**: Visualize chat activity patterns over time with clickable data points and confetti effects
-- **Floating Word Cloud**: Dynamic, physics-based visualization of most used words with popularity counts and hover effects
-- **Sentiment Analysis**: Track group mood over time with AI-powered sentiment scoring and emoji indicators
+- **Interactive Timeline**: Visualize chat activity patterns over time
+- **Word Cloud**: Dynamic visualization of most used words with popularity counts
+- **Sentiment Analysis**: Track group mood over time with AI-powered sentiment scoring
 - **Top Contributors**: Identify the most active participants with message counts
-- **Emoji Analysis**: Track and visualize the most popular emojis used with interactive elements
+- **Emoji Analysis**: Track and visualize the most popular emojis used
 - **Media Analysis**: 
   - Track media sharing patterns
   - Identify top media sharers
@@ -32,11 +32,8 @@ This was also an experiement of writing an entire project where:
   - Context-aware holiday greetings
   - Custom chat poems based on group dynamics
   - Popular topics analysis
-- **Festive UI**: 
-  - Falling snow effect
-  - Confetti animations on interactions
-  - Holiday-themed gradients and colors
 - **Smart Caching**: MD5-based caching system for faster repeated analyses
+- **Privacy Protection**: Automatic phone number anonymization with fun nicknames
 
 ## Tech Stack 🛠
 
@@ -46,13 +43,13 @@ This was also an experiement of writing an entire project where:
   - Async processing for sentiment analysis
   - AWS Bedrock integration via LiteLLM
   - Instructor for structured AI outputs
+  - Smart caching with MD5 hashing
 
 - **Frontend**: 
   - HTML5 with responsive design
   - Vanilla JavaScript
-  - Tailwind CSS for styling
   - Chart.js for data visualization
-  - Custom physics-based word cloud
+  - Words Cloud Component
 
 - **AI/ML**: 
   - Claude 3.5 Sonnet via AWS Bedrock for:
@@ -119,8 +116,8 @@ The application will be available at http://localhost:8000
 2. Upload the exported .txt file to the application
 
 3. View your personalized chat analysis with:
-   - Interactive activity timeline with clickable data points
-   - Physics-based floating word cloud with popularity counts
+   - Activity timeline showing message patterns
+   - Word cloud of most used terms
    - Sentiment analysis timeline showing group mood
    - Top contributors and their message counts
    - Most used emoji statistics
@@ -137,17 +134,18 @@ The application will be available at http://localhost:8000
 ```
 holiday-ai-hackerspace/
 ├── main.py                # FastAPI application and backend logic
-├── requirements.txt       # Python dependencies
-├── .env.example          # Example environment variables
-├── .gitignore           # Git ignore rules
-├── static/              # Upload interface assets
-│   ├── index.html       # Interface for chat file upload and analysis
-│   └── app.js           # Upload handling and API integration
-└── gh_static_front/     # Visualization interface assets
-    ├── index.html       # Results visualization interface
-    ├── app.js           # Visualization logic and data rendering
-    ├── word-cloud.js    # Interactive word cloud implementation
-    └── analyzed_data/   # Pre-analyzed chat data
+├── anonymizer.py         # Phone number anonymization logic
+├── requirements.txt      # Python dependencies
+├── .env.example         # Example environment variables
+├── .gitignore          # Git ignore rules
+├── static/             # Upload interface assets
+│   ├── index.html      # Interface for chat file upload
+│   └── app.js          # Upload handling and API integration
+└── gh_static_front/    # Visualization interface assets
+    ├── index.html      # Results visualization interface
+    ├── app.js          # Visualization logic
+    ├── word-cloud.js   # Word cloud implementation
+    └── analyzed_data/  # Pre-analyzed chat data
 ```
 
 ## Development 🔧
@@ -162,16 +160,16 @@ holiday-ai-hackerspace/
 - Media analysis and categorization
 - Viral message detection
 - Shared link analysis
+- Phone number anonymization
 
 ### Frontend
-- Responsive Tailwind CSS design
+- Responsive design
 - Interactive visualizations:
-  - Activity timeline with clickable points
-  - Physics-based word cloud with hover effects
-  - Sentiment analysis graph with emoji indicators
+  - Activity timeline
+  - Word cloud
+  - Sentiment analysis graph
   - Media statistics displays
   - Message category cards
-- Real-time confetti and snow effects
 - Error handling and loading states
 
 ## Contributing 🤝
@@ -195,9 +193,6 @@ holiday-ai-hackerspace/
 - [ ] Add support for Facebook Messenger exports
 - [ ] Add support for Discord exports
 - [ ] Add support for Slack exports
-
-### Privacy and Data Handling
-- [ ] Anonymize phone numbers with fun nicknames
 
 ### Export and Sharing
 - [ ] Enable PDF export of summaries
@@ -226,7 +221,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Built with Roo-Cline, ChatGPT and @zoharbabin
 - Chart.js for data visualization
-- Tailwind CSS for styling
 - AWS Bedrock for AI capabilities
 
 ---
