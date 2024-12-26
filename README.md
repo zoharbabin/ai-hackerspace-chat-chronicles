@@ -10,11 +10,21 @@ This was also an experiement of writing an entire project where:
 
 ## Features 🌟
 
-- **Interactive Timeline**: Visualize chat activity patterns over time with clickable data points
-- **Floating Word Cloud**: Interactive visualization of most used words with popularity counts
-- **Sentiment Analysis**: Track group mood over time with AI-powered sentiment scoring
+- **Interactive Timeline**: Visualize chat activity patterns over time with clickable data points and confetti effects
+- **Floating Word Cloud**: Dynamic, physics-based visualization of most used words with popularity counts and hover effects
+- **Sentiment Analysis**: Track group mood over time with AI-powered sentiment scoring and emoji indicators
 - **Top Contributors**: Identify the most active participants with message counts
-- **Emoji Analysis**: Track and visualize the most popular emojis used
+- **Emoji Analysis**: Track and visualize the most popular emojis used with interactive elements
+- **Media Analysis**: 
+  - Track media sharing patterns
+  - Identify top media sharers
+  - Monitor most reacted media items
+  - Media type distribution statistics
+- **Message Categories**: AI-powered categorization of messages with:
+  - Category and subcategory classification
+  - Context and significance analysis
+  - Participant dynamics
+  - Impact scoring
 - **Viral Messages**: Detect and showcase messages that sparked the most engagement
 - **Shared Links**: Track and analyze the most engaging shared links with context
 - **AI-Powered Insights**: 
@@ -22,27 +32,41 @@ This was also an experiement of writing an entire project where:
   - Context-aware holiday greetings
   - Custom chat poems based on group dynamics
   - Popular topics analysis
-- **Festive UI**: Snow effects, confetti animations, and holiday-themed design
-- **Real-time Analysis**: Instant processing and visualization of chat data
-- **Responsive Design**: Works beautifully on both desktop and mobile
-- **Smart Caching**: Efficient caching system for faster repeated analyses
+- **Festive UI**: 
+  - Falling snow effect
+  - Confetti animations on interactions
+  - Holiday-themed gradients and colors
+- **Smart Caching**: MD5-based caching system for faster repeated analyses
 
 ## Tech Stack 🛠
 
-- **Backend**: FastAPI (Python)
-- **Frontend**: HTML, JavaScript, Tailwind CSS
+- **Backend**: 
+  - FastAPI (Python)
+  - Pydantic for data validation
+  - Async processing for sentiment analysis
+  - AWS Bedrock integration via LiteLLM
+  - Instructor for structured AI outputs
+
+- **Frontend**: 
+  - HTML5 with responsive design
+  - Vanilla JavaScript
+  - Tailwind CSS for styling
+  - Chart.js for data visualization
+  - Custom physics-based word cloud
+
 - **AI/ML**: 
-  - Claude AI via AWS Bedrock for insights (utilizing LiteLLM makes it simple to replace the model provider)
-  - Parallel sentiment analysis processing
-  - Smart message batching
-- **Visualization**: 
-  - Chart.js for timelines and graphs
-  - Custom interactive word cloud implementation
+  - Claude 3.5 Sonnet via AWS Bedrock for:
+    - Sentiment analysis
+    - Chat insights
+    - Message categorization
+  - Parallel sentiment analysis with batching
+  - Structured output parsing
+
 - **Performance**: 
-  - Caching system with MD5 hashing
+  - MD5-based caching system
   - Parallel processing for sentiment analysis
-  - Optimized message parsing
-- **Dependencies**: See requirements.txt for full list
+  - Optimized message parsing with regex
+  - Smart message batching for AI analysis
 
 ## Prerequisites 📋
 
@@ -51,8 +75,6 @@ This was also an experiement of writing an entire project where:
 - AWS credentials configured
 
 ## Setup 🚀
-
-### Local Development
 
 1. Clone the repository:
 ```bash
@@ -86,23 +108,6 @@ uvicorn main:app --reload
 
 The application will be available at http://localhost:8000
 
-### Docker Setup
-
-1. Build the Docker image:
-```bash
-docker build -t whatsapp-analyzer .
-```
-
-2. Run the container:
-```bash
-docker run -p 8000:8000 \
-  -e AWS_ACCESS_KEY_ID=your_access_key \
-  -e AWS_SECRET_ACCESS_KEY=your_secret_key \
-  -e SENTIMENT_MODEL=your_model \
-  -e CHAT_INSIGHTS_MODEL=your_model \
-  whatsapp-analyzer
-```
-
 ## Usage 📱
 
 1. Export your WhatsApp chat:
@@ -115,11 +120,13 @@ docker run -p 8000:8000 \
 
 3. View your personalized chat analysis with:
    - Interactive activity timeline with clickable data points
-   - Floating word cloud with popularity counts
+   - Physics-based floating word cloud with popularity counts
    - Sentiment analysis timeline showing group mood
    - Top contributors and their message counts
    - Most used emoji statistics
    - AI-detected memorable moments
+   - Media sharing statistics and trends
+   - Message categorization with impact scores
    - Viral messages with engagement metrics
    - Popular shared links with context
    - Custom holiday greeting
@@ -131,19 +138,16 @@ docker run -p 8000:8000 \
 holiday-ai-hackerspace/
 ├── main.py                # FastAPI application and backend logic
 ├── requirements.txt       # Python dependencies
-├── Dockerfile            # Container configuration
-├── .env                 # Environment variables (create this)
-├── .gitignore          # Git ignore rules
-├── static/             # Static frontend assets
-│   ├── index.html      # Main HTML file
-│   ├── app.js          # Frontend JavaScript
-│   └── word-cloud.js   # Word cloud implementation
-├── gh_static_front/    # GitHub static frontend
-│   ├── index.html      # Static HTML file
-│   ├── app.js          # Frontend logic
-│   ├── word-cloud.js   # Word cloud visualization
-│   └── analyzed_data/  # Pre-analyzed chat data
-└── cache/             # Cache directory for API responses
+├── .env.example          # Example environment variables
+├── .gitignore           # Git ignore rules
+├── static/              # Upload interface assets
+│   ├── index.html       # Interface for chat file upload and analysis
+│   └── app.js           # Upload handling and API integration
+└── gh_static_front/     # Visualization interface assets
+    ├── index.html       # Results visualization interface
+    ├── app.js           # Visualization logic and data rendering
+    ├── word-cloud.js    # Interactive word cloud implementation
+    └── analyzed_data/   # Pre-analyzed chat data
 ```
 
 ## Development 🔧
@@ -151,23 +155,23 @@ holiday-ai-hackerspace/
 ### Backend (main.py)
 - FastAPI application with CORS support
 - Structured logging with color formatting
-- Efficient chat parsing with multiple timestamp formats
-- Parallel sentiment analysis processing
-- Smart message batching for AI analysis
-- Caching system with MD5 hashing
+- Multiple timestamp format support
+- Parallel sentiment analysis with batching
+- MD5-based caching system
 - Comprehensive error handling
-- Viral message detection algorithm
-- Top shared link analysis
+- Media analysis and categorization
+- Viral message detection
+- Shared link analysis
 
-### Frontend (static/ & gh_static_front/)
-- Responsive design with Tailwind CSS
+### Frontend
+- Responsive Tailwind CSS design
 - Interactive visualizations:
   - Activity timeline with clickable points
-  - Floating word cloud with hover effects
-  - Sentiment analysis graph
-  - Engagement metrics displays
-- Real-time data processing
-- Festive animations (snow, confetti)
+  - Physics-based word cloud with hover effects
+  - Sentiment analysis graph with emoji indicators
+  - Media statistics displays
+  - Message category cards
+- Real-time confetti and snow effects
 - Error handling and loading states
 
 ## Contributing 🤝
@@ -186,36 +190,33 @@ holiday-ai-hackerspace/
 
 ## Roadmap 🗺️
 
-Future improvements could include:
+### Platform Expansion
+- [ ] Add support for Telegram exports
+- [ ] Add support for Facebook Messenger exports
+- [ ] Add support for Discord exports
+- [ ] Add support for Slack exports
 
-## **Platform Expansion**
-- [ ] Add support for chat exports from Telegram.
-- [ ] Add support for chat exports from Facebook Messenger.
-- [ ] Add support for chat exports from Discord.
-- [ ] Add support for chat exports from Slack.
+### Privacy and Data Handling
+- [ ] Anonymize phone numbers with fun nicknames
 
-## **Privacy and Data Handling**
-- [ ] Anonyize phone numbers replacing with fun nick names.
+### Export and Sharing
+- [ ] Enable PDF export of summaries
+- [ ] Create shareable summary links
 
-## **Export and Sharing**
-- [ ] Enable exporting summaries as PDF files.  
-- [ ] Create shareable links for generated summaries.  
+### Accessibility
+- [ ] Add ARIA labels
+- [ ] Make visualizations screen-reader friendly
 
-## **Accessibility**
-- [ ] Add ARIA labels for better accessibility.  
-  - [ ] Ensure charts and interactive elements are screen-reader friendly.  
+### Enhanced Insights
+- [ ] Implement detailed emotion detection
+- [ ] Add topic clustering
+- [ ] Track engagement trends
+- [ ] Create member badges and streaks
 
-## **Enhanced Insights**
-- [ ] Implement emotion detection (e.g., joy, sadness, anger) in sentiment analysis.  
-  - [ ] Add topic clustering to summarize recurring themes in conversations.  
-- [ ] Highlight trending messages with engagement trends over time.  
-  - [ ] Correlate viral messages with shared links or key events.  
-- [ ] Create badges and streaks visualization on key members with fun insights on members.
-
-## **Customization and Visualization**
-- [ ] Allow users to filter data by date range or specific users.  
-- [ ] Create interactive heatmaps to visualize activity trends.  
-- [ ] Introduce zoomable timelines with drag-and-scroll functionality.  
+### Customization and Visualization
+- [ ] Add date range filtering
+- [ ] Implement activity heatmaps
+- [ ] Add zoomable timelines
 
 ## License 📄
 
